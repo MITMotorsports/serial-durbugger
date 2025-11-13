@@ -30,7 +30,6 @@ export function Dropdown({
                              ifEmpty = <p>Nothing here...</p>,
                              onSelect,
                              value = null,
-                             onChange
                          }: {
     children?: React.ReactElement<DropdownItemProps> | React.ReactElement<DropdownItemProps>[],
     className?: string,
@@ -38,7 +37,6 @@ export function Dropdown({
     ifEmpty?: React.ReactElement,
     onSelect: (value: string) => void,
     value?: string | null,
-    onChange?: (e) => any
 }) {
     const [isOpen, setIsOpen] = useState(false);
     const dropdownRef = useRef<HTMLDivElement>(null);
@@ -83,7 +81,7 @@ export function Dropdown({
     const getLabel = () => {
         if (value) {
             const selectedChild = React.Children.toArray(children).find(
-                (child) => React.isValidElement(child) && child.props.value === value
+                (child) => React.isValidElement(child) && (child.props as any).value === value
             ) as React.ReactElement<DropdownItemProps> | undefined;
             return selectedChild ? selectedChild.props.children : placeholder;
         }

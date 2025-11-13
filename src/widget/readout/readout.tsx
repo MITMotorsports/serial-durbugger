@@ -159,7 +159,7 @@ const ValueTab: React.FC<{
 const Header: React.FC<{
     behavior: WidgetBehavior & { type: "readout" },
     Container: React.FC<ToolContainerProps>
-}> = ({behavior, Container}) => {
+}> = ({Container}) => {
     return <Container>
         <div className="p-2 text-lg md:text-xl font-semibold text-gray-900 shadow-sm">
             <h2>
