@@ -6,7 +6,8 @@ export type Command = {
     arguments: string[]
 }
 
-export class ListenerRef {}
+export class ListenerRef {
+}
 
 export type DeviceConfig = {
     name: string | undefined,
@@ -27,13 +28,17 @@ export type ListenerManager = {
         command: (ref: ListenerRef) => void,
         raw: (ref: ListenerRef) => void
     },
-    localWrite(buf: Uint8Array): void
+    push(event: DeviceEvent): void
+    // moveListeners: (other: ListenerManager) => void
+    // localWrite(buf: Uint8Array): void
 }
 
 export type Project = {
     id: number,
+    device: Device,
     write: (string?: string | undefined, raw?: Uint8Array | undefined) => Promise<void>,
-    close: () => Promise<void>
+    close: () => Promise<void>,
+    reopen: () => Promise<boolean>,
 } & ListenerManager
 
 export type Device = {
@@ -42,13 +47,14 @@ export type Device = {
     ref: DeviceRef,
     config: DeviceConfig,
     channel: Channel<DeviceEvent>,
-    manager: ListenerManager,
+    listeners: ListenerManager,
+    open: boolean,
 }
 
 export type ProjectManager = {
     getDevice: (sort: string, name: string) => Device | null,
     openDevice: (sort: string, config: DeviceConfig) => Promise<Device>,
-    openProject: (ref: DeviceRef) => Promise<Project>
+    openProject: (device: Device) => Promise<Project>
 }
 
 export class ProjectManagerImpl implements ProjectManager {
@@ -80,28 +86,30 @@ export class ProjectManagerImpl implements ProjectManager {
             ref: res,
             config: config,
             channel: channel,
-            manager: new ListenerManagerImpl(channel)
+            listeners: new ListenerManagerImpl(),
+            open: true
         }
 
         this.devices.push(device)
 
-        device.manager.registerListener.close(() => {
+        device.listeners.registerListener.close(() => {
             const pos = this.devices.indexOf(device)
             this.devices.splice(pos, 1)
+            device.open = false
         })
 
         return device;
     }
 
-    async openProject(ref: DeviceRef): Promise<Project> {
+    async openProject(d: Device): Promise<Project> {
         let id = await invoke<number>("new_project", {
             workspace: "idk", // TODO not actually used,
-            reference: ref
+            reference: d.ref
         });
 
-        let device = this.devices.find((device) => device.ref == ref)!!
+        let device = this.devices.find((device) => device.ref == d.ref)!!
 
-        return new ProjectImpl(id, device.manager)
+        return new ProjectImpl(id, device, this)
     }
 
     constructor() {
@@ -151,36 +159,44 @@ class ListenerManagerImpl implements ListenerManager {
         }
     }
 
-    localWrite(buf: Uint8Array): void {
-        for (let [_, listener] of this.rawListeners) {
-            listener(buf)
-        }
-    }
-
-    constructor(channel: Channel<DeviceEvent>) {
-        channel.onmessage = (c) => {
-            if (c.type === "RecRaw") {
-                for (let [_, listener] of this.rawListeners) {
-                    listener(Uint8Array.from(c.data))
-                }
-            } else if (c.type === "RecCommand") {
-                for (let [_, listener] of this.commandListeners) {
-                    listener(c.data)
-                }
-            } else if (c.type === "Close") {
-                this.commandListeners.clear()
-                this.rawListeners.clear()
-                for (let listener of this.closeListeners) {
-                    listener()
-                }
+    push(e: DeviceEvent): void {
+        if (e.type === "RecRaw") {
+            for (let [_, listener] of this.rawListeners) {
+                listener(Uint8Array.from(e.data))
+            }
+        } else if (e.type === "RecCommand") {
+            for (let [_, listener] of this.commandListeners) {
+                listener(e.data)
+            }
+        } else if (e.type === "Close") {
+            for (let listener of this.closeListeners) {
+                listener()
             }
         }
     }
+
+    // moveListeners(other: ListenerManager): void {
+    //     this.closeListeners.forEach(cb => {
+    //         other.registerListener.close(cb)
+    //     })
+    //     this.commandListeners.forEach(cb => {
+    //         other.registerListener.command(cb)
+    //     })
+    //     this.rawListeners.forEach(cb => {
+    //         other.registerListener.raw(cb)
+    //     })
+    //     // this.commandListeners = new Map()
+    //     // this.rawListeners = new Map()
+    // }
+
+    constructor() {}
 }
 
 class ProjectImpl implements Project {
     id: number;
     listenerManager: ListenerManager
+    device: Device;
+    private projectManager: ProjectManager;
 
     registerListener: {
         command: (fn: (command: Command) => void) => ListenerRef;
@@ -200,6 +216,10 @@ class ProjectImpl implements Project {
         raw: (fn) => this.listenerManager.unregisterListener.raw(fn),
     }
 
+    // moveListeners(other: ListenerManager) {
+    //     this.listenerManager.moveListeners(other)
+    // }
+
     write: (
         string?: string | undefined,
         raw?: Uint8Array | undefined
@@ -213,12 +233,11 @@ class ProjectImpl implements Project {
             buf: buf
         })
 
-        this.localWrite(buf)
+        this.push({
+            type: "RecRaw",
+            data: Array.from(buf)
+        })
     };
-
-    localWrite(buf: Uint8Array): void {
-        this.listenerManager.localWrite(buf)
-    }
 
     close(): Promise<void> {
         return invoke("close_project", {
@@ -226,9 +245,41 @@ class ProjectImpl implements Project {
         })
     }
 
-    constructor(id: number, listenerManager: ListenerManager) {
+    async reopen(): Promise<boolean> {
+        // if (this.device.open) return true
+        this.device = await this.projectManager.openDevice(
+            this.device.sort,
+            this.device.config
+        )
+
+        await invoke("push_new_device", {
+            project: this.id,
+            reference: this.device.ref
+        })
+
+        console.log("Pushed and everything")
+
+        this.registerListeners()
+
+        return true
+    };
+
+    push(event: DeviceEvent): void {
+        this.listenerManager.push(event)
+    }
+
+    registerListeners() {
+        this.device.channel.onmessage = (event: DeviceEvent) => {
+            this.listenerManager.push(event)
+        }
+    }
+
+    constructor(id: number, device: Device, projectManager: ProjectManager) {
+        this.device = device
         this.id = id
-        this.listenerManager = listenerManager
+        this.listenerManager = new ListenerManagerImpl()
+        this.projectManager = projectManager
+        this.registerListeners()
     }
 }
 

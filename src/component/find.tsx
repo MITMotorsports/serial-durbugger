@@ -78,11 +78,11 @@ export default function FindTool({
 
     // Effect to reset current index if search results change
     useEffect(() => {
-        if (query) {
-            setCurrentMatchIndex(matchCount > 0 ? 0 : -1);
-        } else {
-            setCurrentMatchIndex(-1);
-        }
+        // if (query) {
+        //     setCurrentMatchIndex(matchCount > 0 ? 0 : -1);
+        // } else {
+        //     setCurrentMatchIndex(-1);
+        // }
     }, [query, matchCount]);
 
     // Effect to call onFind whenever the currentMatchIndex or query changes

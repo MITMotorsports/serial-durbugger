@@ -1,5 +1,4 @@
 import SessionManager from "./session_manager.tsx";
-import React from "react";
 import ReactDOM from "react-dom/client";
 import {Tool} from "./widget/tool.ts";
 import {ReadoutTimeline} from "./widget/readout/readout_timeline.tsx";
@@ -9,17 +8,26 @@ import {ProjectManagerImpl, Projects} from "./device.tsx";
 import {AlertProvider} from "./alert.tsx";
 import {LogViewer} from "./widget/log/log_viewer.tsx";
 import {CommandSender} from "./widget/command_panel.tsx";
+import UpdateHelper from "./update.tsx";
+import {invoke} from "@tauri-apps/api/core";
 
 export const toolRegistry: Tool[] = [
     ReadoutTimeline, Raw, Readout, LogViewer, CommandSender
 ]
 
+invoke("close_all_projects").then(() => {
+    console.log("All projects successfully closed.")
+})
+
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
-    <React.StrictMode>
+    // TODO decide if we want strict mode. Currently the double rendering is causing device open/close problems in useEffect.
+    // <React.StrictMode>
         <AlertProvider>
-            <Projects.Provider value={new ProjectManagerImpl()}>
-                <SessionManager/>
-            </Projects.Provider>
+            <UpdateHelper>
+                <Projects.Provider value={new ProjectManagerImpl()}>
+                    <SessionManager/>
+                </Projects.Provider>
+            </UpdateHelper>
         </AlertProvider>
-    </React.StrictMode>,
+    // </React.StrictMode>,
 );

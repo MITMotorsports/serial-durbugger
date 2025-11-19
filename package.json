@@ -1,5 +1,5 @@
 {
-  "name": "durganator3000",
+  "name": "serial-durbugger",
   "private": true,
   "version": "0.1.0",
   "type": "module",
@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "tauri": "tauri dev --no-watch"
+    "tauri": "tauri dev"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.1.13",

@@ -121,7 +121,9 @@ impl<R: Runtime> BuilderConfig<R> {
 impl BuilderConfig<Wry> {
     pub fn new() -> Self {
         BuilderConfig {
-            builder: Builder::new().plugin(tauri_plugin_opener::init()),
+            builder: Builder::new()
+                .plugin(tauri_plugin_opener::init())
+                .plugin(tauri_plugin_updater::Builder::new().build()),
             config: HashMap::new(),
         }
     }

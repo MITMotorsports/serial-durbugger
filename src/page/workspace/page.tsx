@@ -14,7 +14,7 @@ import ResizeAware from "./resize.tsx";
 import WidgetHeader from "./header.tsx";
 import WidgetConfigurationBox from "./configuration.tsx";
 import {DEBUG} from "./const.tsx";
-
+import {BackendError} from "../../err.ts";
 
 const Workspace: React.FC<{ id: string, project: Project } & SessionWindow> = ({
                                                                                    id,
@@ -51,7 +51,8 @@ const Workspace: React.FC<{ id: string, project: Project } & SessionWindow> = ({
     });
 
     useEffect(() => {
-        setName(id)
+        setName(`${id} - ${project.device.name}`);
+
         const cb = setInterval(() => {
             if (modified.current.length == 0) return
 
@@ -66,6 +67,21 @@ const Workspace: React.FC<{ id: string, project: Project } & SessionWindow> = ({
                 alerts.showAlert("error", e.toString())
             })
         }, 1000);
+
+        project.registerListener.close(() => {
+            alerts.showAlert("warning", "Device closed.")
+
+            let id = setInterval(() => {
+                project.reopen().then(() => {
+                    clearInterval(id)
+                    alerts.showAlert("info", "Connection reestablished.")
+                }).catch((e: BackendError) => {
+                    if (e.kind == "NoSuchProject") {
+                        clearInterval(id)
+                    }
+                })
+            }, 50)
+        })
 
         return () => clearInterval(cb);
     }, [])

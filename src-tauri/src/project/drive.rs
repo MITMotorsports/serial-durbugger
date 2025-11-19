@@ -1,12 +1,11 @@
 use crate::command::{Command, CommandParser};
 use crate::device::{DeviceManagers, DeviceRef};
-use crate::device_pool;
 use crate::drive::{Drive, Vehicle};
 use crate::err::{Error, ErrorKind};
 use serde::Serialize;
 use serde_json::Value;
 use tauri::ipc::Channel;
-use tauri::{command, AppHandle, Emitter, State};
+use tauri::{command, State};
 
 #[derive(Serialize)]
 #[serde(tag = "type", content = "data")]
@@ -44,37 +43,41 @@ pub fn open_device(
 
     let device = manager.open(config)?;
 
-    let drive = ProjectDrive {
+    let drive = DeviceDrive {
         channel,
         parser: CommandParser::new(),
         device: device.clone(),
         drive: false,
     };
 
+    println!("Registering drive: {} ({})", name, device.id());
+
     driver.register(drive);
 
     Ok(device)
 }
 
-struct ProjectDrive {
+struct DeviceDrive {
     channel: Channel<DeviceEvent>,
     parser: CommandParser,
     device: DeviceRef,
     drive: bool,
 }
 
-impl Drive for ProjectDrive {
+impl Drive for DeviceDrive {
     fn drive(&mut self) -> Result<bool, Error> {
         if self.device.rc() > 1 && !self.drive {
-            self.drive = true
+            self.drive = true;
+            println!("Drive starting for device: {}", self.device.id());
         }
 
         if self.device.rc() == 1 && self.drive {
+            println!("Closing device drive {}", self.device.id());
             self.device.close();
 
             self.channel.send(DeviceEvent::Close).map_err(|_| {
                 Error::new(
-                    ErrorKind::ChannelSendError,
+                    ErrorKind::TauriError,
                     "Failed to send message through channel",
                 )
             })?;
@@ -86,15 +89,18 @@ impl Drive for ProjectDrive {
         }
 
         let content = self.device.use_device(|d| d.read_available());
+
         let content = if let Some(x) = content {
-            x?
+            if let Ok(x) = x {
+                x
+            } else {
+                self.channel.send(DeviceEvent::Close)?;
+                self.device.close();
+
+                return Ok(false);
+            }
         } else {
-            self.channel.send(DeviceEvent::Close).map_err(|_| {
-                Error::new(
-                    ErrorKind::ChannelSendError,
-                    "Failed to send message through channel",
-                )
-            })?;
+            self.channel.send(DeviceEvent::Close)?;
 
             return Ok(false);
         };
@@ -105,7 +111,7 @@ impl Drive for ProjectDrive {
             .send(DeviceEvent::RecRaw(content.clone()))
             .map_err(|_| {
                 Error::new(
-                    ErrorKind::ChannelSendError,
+                    ErrorKind::TauriError,
                     "Failed to send message through channel",
                 )
             })?;
@@ -117,7 +123,7 @@ impl Drive for ProjectDrive {
                     .send(DeviceEvent::RecCommand(c))
                     .map_err(|_| {
                         Error::new(
-                            ErrorKind::ChannelSendError,
+                            ErrorKind::TauriError,
                             "Failed to send message through channel",
                         )
                     })?;

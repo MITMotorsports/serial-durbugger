@@ -8,6 +8,7 @@ import {DeviceConfig, Projects} from "../device";
 import {useAlerts} from "../alert";
 import Workspace from "./workspace/page.tsx";
 import Home from "./home/home.tsx";
+import {BackendError} from "../err.ts";
 
 
 // ====================================================================
@@ -249,7 +250,7 @@ const ConfigureProject: React.FC<{ workspace: string } & SessionWindow> = ({work
             connectionSort, finalConfig
         )
 
-        let project = await projectManager.openProject(device.ref)
+        let project = await projectManager.openProject(device)
 
         setPage(Workspace, {
             id: workspace,
@@ -339,8 +340,9 @@ const ConfigureProject: React.FC<{ workspace: string } & SessionWindow> = ({work
 
                 <Button
                     onClick={() => {
-                        handleCreateNew().catch((e) => {
-                            alerts.showAlert("warning", e.toString())
+                        handleCreateNew().catch((e: BackendError) => {
+                            console.log(e)
+                            alerts.showAlert("warning", e.message)
                         })
                     }}
                     disabled={!config.ready || !config.name}

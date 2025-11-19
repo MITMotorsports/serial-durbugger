@@ -2,5 +2,5 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 fn main() {
-    durganator3000_lib::run()
+    serial_durbugger_lib::run()
 }

@@ -1,6 +1,5 @@
 import "./global.css";
 import React, {FC, useEffect, useState} from "react";
-import {invoke} from "@tauri-apps/api/core";
 import WorkspaceSelection from "./page/home/home.tsx";
 
 interface SessionManager {
@@ -39,9 +38,11 @@ const SessionPanel: React.FC<{
     ) {
         const fc = page as FC<SessionWindow>
 
-        if (!pages.find((t) => t.fc == fc)) {
-            setPages((curr) => [
-                ...curr,
+        setPages((curr) => {
+            let filtered = pages.filter((t) => t.fc !== fc)
+
+            return [
+                ...filtered,
                 {
                     id: curr.length,
                     fc: fc,
@@ -52,8 +53,8 @@ const SessionPanel: React.FC<{
                         onClose: onClose
                     }
                 }
-            ])
-        }
+            ]
+        })
         setCurrent(() => fc)
     }
 
@@ -96,7 +97,6 @@ export default function SessionManager() {
             id: newSessionId,
             name: `Home`,
             content: <SessionPanel key={newSessionId} setName={(name) => {
-                console.log(name)
                 setSessions((prev) => {
                     return prev.map((s) => s.id == newSessionId ?
                         {
@@ -142,6 +142,7 @@ export default function SessionManager() {
         if (!session) {
             return
         }
+
         Promise.all(session.closeHooks.map((hook) => hook())).then(() => {
             doRemove()
         }).catch((e) => {
@@ -151,9 +152,6 @@ export default function SessionManager() {
 
     useEffect(() => {
         addSession();
-        invoke("close_all_projects").then(() => {
-            console.log("All projects successfully closed.")
-        })
     }, [])
 
     return (

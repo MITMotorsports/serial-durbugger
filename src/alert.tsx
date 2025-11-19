@@ -159,16 +159,16 @@ const AlertItem: React.FC<{ alert: Alert; dismiss: (id: string) => void }> = ({ 
     return (
         <div
             className={`
-        max-w-sm w-full md:max-w-md p-4 pr-12 rounded-lg border-l-4 shadow-lg flex items-start space-x-3
-        transition-all duration-500 ease-in-out cursor-pointer relative overflow-hidden
+        w-full p-4 pr-12 rounded-lg border-l-4 shadow-lg flex space-x-3
+        transition-all duration-500 ease-in-out cursor-pointer items-center justify-center
         ${colorClasses} ${animationClass}
       `}
             onClick={handleDismiss} // Allow clicking the body to dismiss
             role="alert"
             style={collapseStyle}
         >
-            <div className="flex-shrink-0 mt-0.5">{iconSvg}</div>
-            <div className="flex-1 text-sm font-medium">
+            <div className="mt-0.5">{iconSvg}</div>
+            <div className="text-sm font-medium items-center justify-center">
                 <span className="capitalize font-bold">{type}</span>: {message}
             </div>
             <button
@@ -193,7 +193,7 @@ const AlertContainer: React.FC<{ alerts: Alert[]; dismiss: (id: string) => void 
         <div
             id="alert-container"
             className="fixed top-4 right-4 z-50 flex flex-col items-end space-y-3 p-2
-                       max-h-[90vh] overflow-y-auto"
+                       max-h-full overflow-y-auto"
         >
             {alerts.map((alert) => (
                 <AlertItem key={alert.id} alert={alert} dismiss={dismiss} />

@@ -94,7 +94,7 @@ function Widget({project}: { project: Project }) {
                 // })
             }}/>
             <div
-                className="flex-grow p-4 font-mono text-sm overflow-y-auto relative"
+                className="flex-grow p-4 font-mono text-sm overflow-y-auto relative select-auto"
             >
                 <List<RawLineProps>
                     onScroll={onScroll}

@@ -4,7 +4,7 @@ import React, {useCallback, useEffect, useState} from "react";
 import Button from "../../component/button.tsx";
 import {useAlerts} from "../../alert.tsx";
 
-export const READOUT_REGEX = /(\w+)\$=(\d+\.?\d*)/g;
+export const READOUT_REGEX = /(\S+) = (\d+\.?\d*)/g;
 
 // Assuming SetBehavior is a type like (newBehavior: { components: string[] }) => void
 // and Input, Button are functional components that accept standard props
@@ -14,25 +14,14 @@ export const READOUT_REGEX = /(\w+)\$=(\d+\.?\d*)/g;
 /**
  * The result of the parsing operation.
  */
-interface ReadoutParseResult {
-    values: {
-        component: string;
-        value: number;
-    }[];
-    lastMatchEnd: number;
+export interface Readout {
+    component: string;
+    value: number;
 }
 
-/**
- * Helper to check if a char code is part of a "word" (\w).
- * This is much faster than a regex check.
- */
-function isWordCharCode(code: number): boolean {
-    return (
-        (code >= 48 && code <= 57) || // 0-9
-        (code >= 65 && code <= 90) || // A-Z
-        (code >= 97 && code <= 122) || // a-z
-        code === 95 // _
-    );
+export interface ReadoutParseResult {
+    values: Readout[];
+    lastMatchEnd: number;
 }
 
 /**
@@ -46,75 +35,31 @@ export function parseReadouts(
     fullString: string,
     validComponents: string[]
 ): ReadoutParseResult {
-    const readouts: {
-        component: string;
-        value: number;
-    }[] = [];
+    const readouts: Readout[] = [];
     let lastMatchEnd = 0;
-    let searchIndex = 0;
 
-    while (true) {
-        // Find the start of our key-value marker
-        const markerIndex = fullString.indexOf('$=', searchIndex);
-        if (markerIndex === -1) {
-            break; // No more matches found
-        }
+    // We must use the 'g' (global) flag on the regex for repeated matching
+    // and use fullString.matchAll() to iterate over all matches.
+    const matches = fullString.matchAll(READOUT_REGEX);
 
-        // --- 1. Find the Key (Component) ---
-        // Search backwards from the marker
-        let keyStartIndex = markerIndex - 1;
-        while (keyStartIndex >= 0 && isWordCharCode(fullString.charCodeAt(keyStartIndex))) {
-            keyStartIndex--;
-        }
-        keyStartIndex++; // We went one char too far, so step back
+    for (const match of matches) {
+        const component = match[1];
+        const valueStr = match[2];
 
-        const component = fullString.substring(keyStartIndex, markerIndex);
-
-        // --- 2. Find the Value ---
-        // Search forwards from the marker
-        let valueStartIndex = markerIndex + 2; // Skip '$='
-        let valueEndIndex = valueStartIndex;
-
-        // The original regex `\d+\.?\d*` requires at least one digit to start
-        if (valueEndIndex >= fullString.length || fullString.charCodeAt(valueEndIndex) < 48 || fullString.charCodeAt(valueEndIndex) > 57) {
-            // Does not start with a digit, not a valid match.
-            searchIndex = valueStartIndex; // Start next search after the '!='
-            continue;
-        }
-
-        // Consume all digits for the integer part (\d+)
-        while (valueEndIndex < fullString.length && fullString.charCodeAt(valueEndIndex) >= 48 && fullString.charCodeAt(valueEndIndex) <= 57) {
-            valueEndIndex++;
-        }
-
-        // Check for an optional decimal point (\.?)
-        let hasDecimal = false;
-        if (valueEndIndex < fullString.length && fullString.charCodeAt(valueEndIndex) === 46 /* . */) {
-            hasDecimal = true;
-            valueEndIndex++; // Consume the decimal
-        }
-
-        // If we had a decimal, consume the optional following digits (\d*)
-        if (hasDecimal) {
-            while (valueEndIndex < fullString.length && fullString.charCodeAt(valueEndIndex) >= 48 && fullString.charCodeAt(valueEndIndex) <= 57) {
-                valueEndIndex++;
-            }
-        }
-
-        const valueStr = fullString.substring(valueStartIndex, valueEndIndex);
-
-        // --- 3. Process the Match ---
         if (validComponents.includes(component)) {
+            // match.index is the starting index of the full match (match[0])
+            // Since we want the end of the VALUE, we add the length of the full match.
+            const matchEnd = match.index! + match[0].length;
+
             readouts.push({
                 component: component,
-                value: Number.parseFloat(valueStr), // Our parser ensures this is a valid number string
+                // The regex ensures valueStr is a valid number string
+                value: Number.parseFloat(valueStr),
             });
-            // Update the index of the *last valid* match
-            lastMatchEnd = valueEndIndex;
-        }
 
-        // Continue searching from the end of this value
-        searchIndex = valueEndIndex;
+            // Update the index of the *last valid* match
+            lastMatchEnd = matchEnd;
+        }
     }
 
     return { values: readouts, lastMatchEnd };

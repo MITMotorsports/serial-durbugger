@@ -71,6 +71,10 @@ impl Read for MockChannel {
 
         let mut rng = rand::thread_rng();
 
+        if rng.gen_bool(0.01) {
+            return Err(io::Error::new(io::ErrorKind::Other, "mock channel closed"))
+        }
+
         // Static data for generating varied logs
         const LEVELS: &[&str] = &["ERROR", "WARN", "INFO", "DEBUG"];
         const FILES: &[&str] = &["src/main.rs", "database/connect.ts", "api/user.rs", "core/engine.rs"];

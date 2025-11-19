@@ -64,6 +64,7 @@ impl Vehicle {
         let receiver = self.channel.lock().unwrap().1.take().unwrap();
 
         let rate = self.rate;
+
         thread::spawn(move || {
             let receiver = receiver;
 

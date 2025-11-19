@@ -28,12 +28,10 @@ const Widget: React.FC<{ project: Project, behavior: WidgetBehavior & { type: "r
 
         const full = rawBuffer + decoded;
 
-        // 1. Parse the string to get all new readouts
         const result = parseReadouts(
             full,
             behavior.components
         );
-
 
         for (const readout of result.values) {
             const {component, value} = readout;
@@ -41,6 +39,7 @@ const Widget: React.FC<{ project: Project, behavior: WidgetBehavior & { type: "r
             // Get the previous data for this component
             const past = values.current.get(component);
 
+            console.log(component, value);
             // Set the new data, accumulating count and average
             values.current.set(component, {
                 current: value,
@@ -76,8 +75,12 @@ const Widget: React.FC<{ project: Project, behavior: WidgetBehavior & { type: "r
         <div className="flex flex-col h-full p-4">
             <div className="flex flex-col items-start gap-6">
                 {behavior.components.map((componentName) => {
-                    const value = displayValues.get(componentName);
-                    if (!value) return <></>;
+                    const value = displayValues.get(componentName) ?? {
+                        current: 0,
+                        average: 0,
+                        count: 1,
+                    };
+                    // if (!value) return <></>;
                     return <ValueTab
                         component={componentName}
                         key={componentName}

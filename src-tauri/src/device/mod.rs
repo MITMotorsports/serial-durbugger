@@ -70,16 +70,16 @@ pub mod pool {
             inner.ref_counter += 1;
 
             println!("Device ({}), new RC: {})",&reference.id, inner.ref_counter);
-            
+
             true
         }
 
         pub fn close(&mut self, reference: &DeviceRef) -> Option<Device> {
             let remove = if let Some(d) = self.devices.get_mut(&reference.id) {
                 d.ref_counter -= 1;
-                
+
                 println!("Device ({}), new RC: {})",&reference.id, d.ref_counter);
-                
+
                 d.ref_counter == 0
             } else {
                 false
@@ -87,7 +87,7 @@ pub mod pool {
 
             if remove {
                 println!("Closing raw device (ID: ${})", &reference.id);
-                
+
                 if let Some(mut d) = self.devices.remove(&reference.id) {
                     return d.device.take();
                 }
@@ -311,10 +311,12 @@ impl Device {
     }
 
     pub fn read_available(&mut self) -> Result<Vec<u8>, Error> {
-        let available = self.channel.available();
+        let mut available = self.channel.available();
 
+        // Available is not always reliable
         if available == 0 {
-            return Ok(vec![]);
+            available = 64
+            // return Ok(vec![]);
         }
 
         let mut vec = vec![0u8; available]; // Vec::with_capacity(self.channel.available());
@@ -322,6 +324,10 @@ impl Device {
         self.read(&mut vec)?;
 
         Ok(vec)
+    }
+
+    pub fn available(&mut self) -> usize {
+       self.channel.available()
     }
 
     pub fn read(&mut self, buf: &mut [u8]) -> Result<usize, Error> {

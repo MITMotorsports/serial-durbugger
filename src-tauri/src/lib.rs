@@ -13,24 +13,26 @@ pub mod any;
 pub mod drive;
 pub mod err;
 pub mod project;
+mod update;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     if let Ok(_) = DEVICE_POOL.set(DevicePool::new()) {
         // Rust not throwing warnings
     }
-    
+
     let home = homedir::my_home().unwrap_or_else(|_| None).unwrap_or_else(|| PathBuf::from("dat/"))
         .join(".serialdebugger");
 
     let workspace_path = home.join("workspace");
 
     BuilderConfig::<Wry>::new()
+        .update_handler()
         .commands()
         .device()
         .serial()
         .mock()
-        .drive(500)
+        .drive(50)
         .workspace(workspace_path) // Poll every 50 ms
         .project()
         .build()
