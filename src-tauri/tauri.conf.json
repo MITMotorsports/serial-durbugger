@@ -35,7 +35,7 @@
   },
   "plugins": {
     "updater": {
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEUxNDQyMTJGRTE3OTdCMDcKUldRSGUzbmhMeUZFNGZibzhxMExlTGZzMWFmeEs3T3RZL2JvSk5rWVdBSlZabGJuUFcrbDVDMUIK",
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDY3QTVDMkQzMzgyRTUyQUQKUldTdFVpNDQwOEtsWjc2YkIxQmFVcGdwTXNSckVEWC9hSTVFTWkzZlVyV2dZU3ljdzYreWZUSkUK",
       "endpoints": [
         "https://github.com/MITMotorsports/serial-durbugger/releases/latest/download/latest.json"
       ]
