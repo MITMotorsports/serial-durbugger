@@ -56,9 +56,8 @@ const Widget: React.FC<{ project: Project, behavior: WidgetBehavior & { type: "l
     const [autoScroll, setAutoScroll] = useState(true);
     const scrollContainerRef = useListRef(null)
     const rowHeight = useDynamicRowHeight({
-        defaultRowHeight: 25
+        defaultRowHeight: 10
     });
-
 
     const handleReceive = useCallback((buf: Uint8Array) => {
         const decoded = new TextDecoder().decode(buf);
@@ -172,9 +171,8 @@ function LogLine({logs, index, onSelect, style}: RowComponentProps<LogLineProps>
     const levelClasses = getLogLevelClasses(entry.level);
 
     return (
-        <div className={"pb-3"}>
+        <div className={"pb-1"} style={style}>
             <div
-                style={style}
                 onClick={() => {
                     onSelect(entry)
                 }}
