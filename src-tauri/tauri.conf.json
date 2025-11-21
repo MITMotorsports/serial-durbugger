@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "Serial Debugger",
+        "title": "Serial Durbugger",
         "width": 1200,
         "height": 800
       }
