@@ -51,7 +51,7 @@ const Workspace: React.FC<{ id: string, project: Project } & SessionWindow> = ({
     });
 
     useEffect(() => {
-        setName(`${id} - ${project.device.name}`);
+        setName(`${id} - ${project.attached?.name ?? "Unknown"}`);
 
         const cb = setInterval(() => {
             if (modified.current.length == 0) return
@@ -68,19 +68,28 @@ const Workspace: React.FC<{ id: string, project: Project } & SessionWindow> = ({
             })
         }, 1000);
 
-        project.registerListener.close(() => {
+        project.registerListener.close((error) => {
             alerts.showAlert("warning", "Device closed.")
 
-            let id = setInterval(() => {
-                project.reopen().then(() => {
-                    clearInterval(id)
-                    alerts.showAlert("info", "Connection reestablished.")
-                }).catch((e: BackendError) => {
-                    if (e.kind == "NoSuchProject") {
+            let attached = project.attached;
+
+            if (attached && error) {
+                let id = setInterval(() => {
+                    project.manager.openDevice(
+                        attached.sort,
+                        attached.config
+                    ).then((device) => {
                         clearInterval(id)
-                    }
-                })
-            }, 50)
+                        alerts.showAlert("info", "Connection reestablished.")
+
+                        project.pushDevice(device)
+                    }).catch((e: BackendError) => {
+                        if (e.kind == "NoSuchProject") {
+                            clearInterval(id)
+                        }
+                    })
+                }, 50)
+            }
         })
 
         return () => clearInterval(cb);

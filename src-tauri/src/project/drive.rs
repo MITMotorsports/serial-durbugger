@@ -12,7 +12,7 @@ use tauri::{command, State};
 pub enum DeviceEvent {
     RecRaw(Vec<u8>),
     RecCommand(Command),
-    Close,
+    Close {error: bool},
 }
 
 #[command]
@@ -28,8 +28,8 @@ pub fn open_device(
 ) -> Result<DeviceRef, Error> {
     let manager = managers.get(&sort).ok_or_else(|| {
         Error::new(
-            ErrorKind::UnknownDeviceManager(sort.clone()),
-            "Unknown Device type",
+            ErrorKind::UnknownDeviceManager,
+            format!("Unknown Device type {}", sort.clone()),
         )
     })?;
 
@@ -71,11 +71,11 @@ impl Drive for DeviceDrive {
             println!("Drive starting for device: {}", self.device.id());
         }
 
-        if self.device.rc() == 1 && self.drive {
-            println!("Closing device drive {}", self.device.id());
+        if self.device.rc() <= 1 && self.drive {
+            println!("Closing device drive {}", self.device.rc());
             self.device.close();
 
-            self.channel.send(DeviceEvent::Close).map_err(|_| {
+            self.channel.send(DeviceEvent::Close {error: false}).map_err(|_| {
                 Error::new(
                     ErrorKind::TauriError,
                     "Failed to send message through channel",
@@ -91,16 +91,18 @@ impl Drive for DeviceDrive {
         let content = self.device.use_device(|d| d.read_available());
 
         let content = if let Some(x) = content {
-            if let Ok(x) = x {
-                x
-            } else {
-                self.channel.send(DeviceEvent::Close)?;
-                self.device.close();
+            match x {
+                Ok(content) => content,
+                Err(e) => {
+                    println!("ERROR - Closed device {} because {}", self.device.id(), e.message);
+                    self.device.close();
+                    self.channel.send(DeviceEvent::Close {error: true})?;
 
-                return Ok(false);
+                    return Ok(false);
+                }
             }
         } else {
-            self.channel.send(DeviceEvent::Close)?;
+            self.channel.send(DeviceEvent::Close {error: false})?;
 
             return Ok(false);
         };

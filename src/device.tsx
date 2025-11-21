@@ -22,7 +22,7 @@ export type ListenerManager = {
     registerListener: {
         command: (fn: (command: Command) => void) => ListenerRef,
         raw: (fn: (content: Uint8Array) => void) => ListenerRef,
-        close: (fn: () => void) => void
+        close: (fn: (error: boolean) => void) => void
     },
     unregisterListener: {
         command: (ref: ListenerRef) => void,
@@ -35,10 +35,11 @@ export type ListenerManager = {
 
 export type Project = {
     id: number,
-    device: Device,
+    attached: Device | null,
     write: (string?: string | undefined, raw?: Uint8Array | undefined) => Promise<void>,
     close: () => Promise<void>,
-    reopen: () => Promise<boolean>,
+    pushDevice: (device: Device) => Promise<void>,
+    manager: ProjectManager,
 } & ListenerManager
 
 export type Device = {
@@ -54,6 +55,7 @@ export type Device = {
 export type ProjectManager = {
     getDevice: (sort: string, name: string) => Device | null,
     openDevice: (sort: string, config: DeviceConfig) => Promise<Device>,
+    deviceClosed: (device: Device) => void,
     openProject: (device: Device) => Promise<Project>
 }
 
@@ -93,13 +95,18 @@ export class ProjectManagerImpl implements ProjectManager {
         this.devices.push(device)
 
         device.listeners.registerListener.close(() => {
-            const pos = this.devices.indexOf(device)
-            this.devices.splice(pos, 1)
-            device.open = false
+            console.log("device listener closed ", device.name)
+
         })
 
         return device;
     }
+
+    deviceClosed(device: Device): void {
+        const pos = this.devices.indexOf(device)
+        this.devices.splice(pos, 1)
+        device.open = false
+    };
 
     async openProject(d: Device): Promise<Project> {
         let id = await invoke<number>("new_project", {
@@ -109,28 +116,32 @@ export class ProjectManagerImpl implements ProjectManager {
 
         let device = this.devices.find((device) => device.ref == d.ref)!!
 
-        return new ProjectImpl(id, device, this)
+        let impl = new ProjectImpl(id, this)
+        await impl.pushDevice(device)
+
+        return impl
     }
 
     constructor() {
         this.devices = []
     }
+
 }
 
 export type DeviceEvent =
     | { type: "RecRaw"; data: Array<number> }
     | { type: "RecCommand"; data: Command }
-    | { type: "Close" };
+    | { type: "Close", data: {error: boolean} };
 
 class ListenerManagerImpl implements ListenerManager {
     private commandListeners: Map<ListenerRef, (command: Command) => void> = new Map()
     private rawListeners: Map<ListenerRef, ((content: Uint8Array) => void)> = new Map()
-    private closeListeners: (() => void)[] = []
+    private closeListeners: ((error: boolean) => void)[] = []
 
     registerListener: {
         command: (fn: (command: Command) => void) => ListenerRef;
         raw: (fn: (content: Uint8Array) => void) => ListenerRef,
-        close: (fn: () => void) => void
+        close: (fn: (error: boolean) => void) => void
     } = {
         command: (cb) => {
             const ref = new ListenerRef()
@@ -170,7 +181,7 @@ class ListenerManagerImpl implements ListenerManager {
             }
         } else if (e.type === "Close") {
             for (let listener of this.closeListeners) {
-                listener()
+                listener(e.data.error)
             }
         }
     }
@@ -189,19 +200,20 @@ class ListenerManagerImpl implements ListenerManager {
     //     // this.rawListeners = new Map()
     // }
 
-    constructor() {}
+    constructor() {
+    }
 }
 
 class ProjectImpl implements Project {
     id: number;
     listenerManager: ListenerManager
-    device: Device;
-    private projectManager: ProjectManager;
+    attached: Device | null;
+    manager: ProjectManager;
 
     registerListener: {
         command: (fn: (command: Command) => void) => ListenerRef;
         raw: (fn: (content: Uint8Array) => void) => ListenerRef,
-        close: (fn: () => void) => void
+        close: (fn: (error: boolean) => void) => void
     } = {
         command: (fn) => this.listenerManager.registerListener.command(fn),
         raw: (fn) => this.listenerManager.registerListener.raw(fn),
@@ -215,10 +227,6 @@ class ProjectImpl implements Project {
         command: (fn) => this.listenerManager.unregisterListener.command(fn),
         raw: (fn) => this.listenerManager.unregisterListener.raw(fn),
     }
-
-    // moveListeners(other: ListenerManager) {
-    //     this.listenerManager.moveListeners(other)
-    // }
 
     write: (
         string?: string | undefined,
@@ -245,42 +253,61 @@ class ProjectImpl implements Project {
         })
     }
 
-    async reopen(): Promise<boolean> {
-        // if (this.device.open) return true
-        this.device = await this.projectManager.openDevice(
-            this.device.sort,
-            this.device.config
-        )
-
-        await invoke("push_new_device", {
+    async pushDevice(device: Device): Promise<void> {
+        await invoke("push_device", {
             project: this.id,
-            reference: this.device.ref
+            reference: device.ref
         })
 
-        console.log("Pushed and everything")
+        this.attached = device
 
         this.registerListeners()
-
-        return true
     };
+
+    //
+    // async reopen(): Promise<boolean> {
+    //     // if (this.device.open) return true
+    //     this.device = await this.projectManager.openDevice(
+    //         this.device.sort,
+    //         this.device.config
+    //     )
+    //
+    //     await invoke("push_new_device", {
+    //         project: this.id,
+    //         reference: this.device.ref
+    //     })
+    //
+    //     console.log("Pushed and everything")
+    //
+    //     this.registerListeners()
+    //
+    //     return true
+    // };
 
     push(event: DeviceEvent): void {
         this.listenerManager.push(event)
     }
 
     registerListeners() {
-        this.device.channel.onmessage = (event: DeviceEvent) => {
+        if (!this.attached) return;
+
+        this.attached.channel.onmessage = (event: DeviceEvent) => {
             this.listenerManager.push(event)
         }
     }
 
-    constructor(id: number, device: Device, projectManager: ProjectManager) {
-        this.device = device
+    constructor(id: number, manager: ProjectManager) {
+        this.attached = null
         this.id = id
         this.listenerManager = new ListenerManagerImpl()
-        this.projectManager = projectManager
-        this.registerListeners()
+        this.manager = manager
+
+        this.registerListener.close(() => {
+            let device = this.attached;
+            if (device) this.manager.deviceClosed(device)
+        })
     }
+
 }
 
 export const Projects = createContext<ProjectManager>(new ProjectManagerImpl())

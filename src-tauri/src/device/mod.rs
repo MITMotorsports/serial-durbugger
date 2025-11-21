@@ -69,7 +69,7 @@ pub mod pool {
 
             inner.ref_counter += 1;
 
-            println!("Device ({}), new RC: {})",&reference.id, inner.ref_counter);
+            // println!("Device ({}), new RC: {})",&reference.id, inner.ref_counter);
 
             true
         }
@@ -86,8 +86,6 @@ pub mod pool {
             };
 
             if remove {
-                println!("Closing raw device (ID: ${})", &reference.id);
-
                 if let Some(mut d) = self.devices.remove(&reference.id) {
                     return d.device.take();
                 }
@@ -118,6 +116,12 @@ pub mod pool {
                 None
             }
         }
+
+        pub fn list(&self) -> Vec<RefId> {
+            self.devices.iter().filter(|(k, v)| {
+                v.ref_counter != 0 && v.device.is_some()
+            }).map(|k| k.0.clone()).collect()
+        }
     }
 }
 
@@ -129,7 +133,7 @@ pub mod pool {
 ///
 static REF_ID: AtomicU64 = AtomicU64::new(0);
 
-#[derive(Serialize)]
+#[derive(Serialize, Debug)]
 pub struct DeviceRef {
     id: u64,
 }
@@ -282,7 +286,7 @@ impl<R: Runtime> BuilderConfig<R> {
 /// A raw read/write connection to a physical or virtual socket
 ///
 pub trait DeviceChannel: Send + Sync + Read + Write {
-    fn available(&self) -> usize;
+    fn available(&self) -> std::io::Result<usize>;
 
     fn close(&mut self);
 }
@@ -311,12 +315,12 @@ impl Device {
     }
 
     pub fn read_available(&mut self) -> Result<Vec<u8>, Error> {
-        let mut available = self.channel.available();
+        let available = self.channel.available()?;
 
         // Available is not always reliable
         if available == 0 {
-            available = 64
-            // return Ok(vec![]);
+            // available = 64
+            return Ok(vec![]);
         }
 
         let mut vec = vec![0u8; available]; // Vec::with_capacity(self.channel.available());
@@ -326,35 +330,20 @@ impl Device {
         Ok(vec)
     }
 
-    pub fn available(&mut self) -> usize {
-       self.channel.available()
-    }
+    // pub fn available(&mut self) -> usize {
+    //    self.channel.available()
+    // }
 
     pub fn read(&mut self, buf: &mut [u8]) -> Result<usize, Error> {
-        self.channel.read(buf).map_err(|e| {
-            Error::new(
-                ErrorKind::IO(e.kind().to_string(), e.to_string()),
-                "Error reading device channel",
-            )
-        })
+        Ok(self.channel.read(buf)?)
     }
 
     pub fn write(&mut self, buf: &[u8]) -> Result<usize, Error> {
-        self.channel.write(buf).map_err(|e| {
-            Error::new(
-                ErrorKind::IO(e.kind().to_string(), e.to_string()),
-                "Error writing device channel",
-            )
-        })
+        Ok(self.channel.write(buf)?)
     }
 
     pub fn flush(&mut self) -> Result<(), Error> {
-        self.channel.flush().map_err(|e| {
-            Error::new(
-                ErrorKind::IO(e.kind().to_string(), e.to_string()),
-                "Error flushing device channel",
-            )
-        })
+        Ok(self.channel.flush()?)
     }
 }
 

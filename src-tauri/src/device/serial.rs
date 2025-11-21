@@ -1,42 +1,61 @@
 use crate::config::BuilderConfig;
 use crate::device::{Device, DeviceChannel, DeviceConfig, DeviceManager, DeviceRef};
-use crate::err::{Error, ErrorKind};
 use crate::device_pool;
+use crate::err::{Error, ErrorKind};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use serialport::SerialPort;
 use std::io::{Read, Write};
+use std::ops::{Deref, DerefMut};
 use std::sync::Mutex;
 use std::time::Duration;
 
 struct SerialChannel {
-    port: Mutex<Box<dyn SerialPort>>,
+    port: Mutex<Option<Box<dyn SerialPort>>>,
+}
+
+impl SerialChannel {
+    fn use_port<T>(
+        &self,
+        block: impl FnOnce(&mut Box<dyn SerialPort>) -> std::io::Result<T>,
+    ) -> std::io::Result<T> {
+        let mut guard = self.port.lock().unwrap();
+        if let Some(p) = guard.deref_mut() {
+            block(p)
+        } else {
+            Err(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                "Serial port is closed.",
+            ))
+        }
+    }
 }
 
 impl Read for SerialChannel {
     fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
-        self.port.lock().unwrap().read(buf)
+        self.use_port(|p| p.read(buf))
     }
 }
 
 impl Write for SerialChannel {
     fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
-        self.port.lock().unwrap().write(buf)
+        self.use_port(|p| p.write(buf))
     }
 
     fn flush(&mut self) -> std::io::Result<()> {
-        self.port.lock().unwrap().flush()
+        self.use_port(|p| p.flush())
     }
 }
 
 impl DeviceChannel for SerialChannel {
-    fn available(&self) -> usize {
-        self.port.lock().unwrap().bytes_to_read().unwrap_or(0) as usize
+    fn available(&self) -> std::io::Result<usize> {
+        self.use_port(|p| p.bytes_to_read().map(|b| b as usize).map_err(|e| {
+            std::io::Error::new(std::io::ErrorKind::Other, format!("{:?}", e))
+        }))
     }
 
     fn close(&mut self) {
-        // Nothing to do
-        // TODO future forcefully drop SerialPort?
+        self.port.lock().unwrap().take();
     }
 }
 
@@ -52,7 +71,9 @@ impl DeviceConfig for SerialConfig {
         self.name.clone()
     }
 
-    fn serialize(&self) -> Value { serde_json::to_value(self).unwrap() }
+    fn serialize(&self) -> Value {
+        serde_json::to_value(self).unwrap()
+    }
 }
 
 struct SerialManager {}
@@ -75,13 +96,13 @@ impl DeviceManager for SerialManager {
             .open()
             .map_err(|e| {
                 Error::new(
-                    ErrorKind::SerialError(e.to_string()),
-                    "Failed to open serial port.",
+                    ErrorKind::SerialError,
+                    format!("Failed to open serial port. {}", e.description),
                 )
             })?;
 
         let channel = Box::new(SerialChannel {
-            port: Mutex::new(serial_port),
+            port: Mutex::new(Some(serial_port)),
         });
 
         let device = Device::new(config.name.clone(), channel, Box::new(config));

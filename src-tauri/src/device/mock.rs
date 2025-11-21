@@ -99,8 +99,8 @@ impl Read for MockChannel {
             format!("[{level} Time: {timestamp} File: {file} Line: {line}] {message}\n")
         } else {
             // 30% chance of a key-value pair log
-            let key = if rng.gen_bool(0.5) { "idk$" } else { "poop$" };
-            format!("{key}={}\n", random::<f64>())
+            let key = if rng.gen_bool(0.5) { "idk" } else { "poop" };
+            format!("{key} = {}\n", random::<f64>())
         };
 
         // Write the generated string as bytes into the buffer
@@ -165,8 +165,8 @@ impl Write for MockChannel {
 }
 
 impl DeviceChannel for MockChannel {
-    fn available(&self) -> usize {
-        256
+    fn available(&self) -> std::io::Result<usize> {
+        Ok(256)
     }
 
     fn close(&mut self) {

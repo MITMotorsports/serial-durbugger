@@ -6,11 +6,6 @@ import {useAlerts} from "../../alert.tsx";
 
 export const READOUT_REGEX = /(\S+) = (\d+\.?\d*)/g;
 
-// Assuming SetBehavior is a type like (newBehavior: { components: string[] }) => void
-// and Input, Button are functional components that accept standard props
-// For this example, I'll use simple HTML for Input and Button as placeholders
-// but you can replace them with your actual components.
-
 /**
  * The result of the parsing operation.
  */
@@ -46,20 +41,19 @@ export function parseReadouts(
         const component = match[1];
         const valueStr = match[2];
 
+        console.log(JSON.stringify(component));
         if (validComponents.includes(component)) {
             // match.index is the starting index of the full match (match[0])
             // Since we want the end of the VALUE, we add the length of the full match.
-            const matchEnd = match.index! + match[0].length;
 
             readouts.push({
                 component: component,
                 // The regex ensures valueStr is a valid number string
                 value: Number.parseFloat(valueStr),
             });
-
-            // Update the index of the *last valid* match
-            lastMatchEnd = matchEnd;
         }
+
+        lastMatchEnd = match.index! + match[0].length;
     }
 
     return { values: readouts, lastMatchEnd };

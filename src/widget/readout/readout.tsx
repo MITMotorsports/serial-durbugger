@@ -26,7 +26,7 @@ const Widget: React.FC<{ project: Project, behavior: WidgetBehavior & { type: "r
     const handleReceive = useCallback((buf: Uint8Array) => {
         const decoded = new TextDecoder().decode(buf)
 
-        const full = rawBuffer + decoded;
+        const full = rawBuffer.current + decoded;
 
         const result = parseReadouts(
             full,

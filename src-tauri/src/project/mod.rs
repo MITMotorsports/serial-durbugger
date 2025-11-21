@@ -14,14 +14,15 @@ pub type Projects = Mutex<HashMap<u64, Project>>;
 
 static REF_ID: AtomicU64 = AtomicU64::new(0);
 
+#[derive(Debug)]
 pub struct Project {
     id: u64,
     workspace: String,
-    device: DeviceRef,
+    device: Option<DeviceRef>,
 }
 
 impl Project {
-    pub fn new(workspace: String, device: DeviceRef) -> Project {
+    pub fn new(workspace: String, device: Option<DeviceRef>) -> Project {
         Project {
             id: REF_ID.fetch_add(1, std::sync::atomic::Ordering::SeqCst),
             workspace,
@@ -39,7 +40,7 @@ impl<R: tauri::Runtime> BuilderConfig<R> {
                 close_project,
                 close_all_projects,
                 drive::open_device,
-                push_new_device
+                push_device
             ],
             &[
                 "new_project",
@@ -47,7 +48,7 @@ impl<R: tauri::Runtime> BuilderConfig<R> {
                 "close_project",
                 "close_all_projects",
                 "open_device",
-                "push_new_device"
+                "push_device"
             ],
         )
         .fold(|b| b.manage(Mutex::new(HashMap::new()) as Projects))
@@ -57,7 +58,7 @@ impl<R: tauri::Runtime> BuilderConfig<R> {
 #[command]
 fn new_project(
     workspace: String,
-    reference: DeviceRef,
+    reference: Option<DeviceRef>,
     projects: State<Projects>,
 ) -> Result<u64, Error> {
     let project = Project::new(workspace, reference);
@@ -69,18 +70,18 @@ fn new_project(
 }
 
 #[command]
-fn push_new_device(
+fn push_device(
     project: u64,
     reference: DeviceRef,
     projects: State<Projects>,
 ) -> Result<(), Error> {
     let mut guard = projects.lock().unwrap();
     let project = guard.get_mut(&project).ok_or(Error::new(
-        ErrorKind::NoSuchProject(),
+        ErrorKind::NoSuchProject,
         "Failed to find this project",
     ))?;
 
-    project.device = reference;
+    project.device = Some(reference);
 
     Ok(())
 }
@@ -90,11 +91,14 @@ fn device_write(project_id: u64, buf: Vec<u8>, projects: State<Projects>) -> Res
     let guard = projects.lock().unwrap();
     let project = guard
         .get(&project_id)
-        .ok_or_else(|| Error::new(ErrorKind::NoSuchProject(), "Cannot find this project."))?;
+        .ok_or_else(|| Error::new(ErrorKind::NoSuchProject, "Cannot find this project."))?;
 
-    if let Some(x) = project.device.use_device(|d| d.write(buf.as_slice())) {
-        x?;
+    if let Some(d_ref) = project.device.as_ref() {
+        if let Some(x) = d_ref.use_device(|d| d.write(buf.as_slice())) {
+            x?;
+        }
     }
+
 
     Ok(())
 }
@@ -103,7 +107,9 @@ fn device_write(project_id: u64, buf: Vec<u8>, projects: State<Projects>) -> Res
 fn close_project(project_id: u64, projects: State<Projects>) -> Result<(), Error> {
     let mut guard = projects.lock().unwrap();
 
+    println!("Projects: {:?}", guard);
     guard.remove(&project_id);
+    println!("Projects: {:?}", guard);
 
     Ok(())
 }
@@ -116,13 +122,15 @@ fn close_all_projects(projects: State<Projects>) -> Result<(), Error> {
 
     guard.iter().for_each(|(_, p)| {
         println!(
-            "Closing project({}), rc at {}",
-            p.device.id(),
-            p.device.rc()
+            "Closing project({:?}), rc at {:?}",
+            p.device.as_ref().map(|d| d.id()),
+            p.device.as_ref().map(|d| d.rc()),
         )
     });
 
     guard.clear();
+    println!("--- Open Devices ---");
+    println!("{:?}", device_pool!().list());
 
     Ok(())
 }

@@ -20,22 +20,22 @@ impl Error {
 #[derive(Serialize, Debug)]
 pub enum ErrorKind {
     // Kind, error
-    IO(String, String),
-    SerialError(String),
-    UnknownDeviceManager(String),
+    IO,
+    SerialError,
+    UnknownDeviceManager,
     InvalidConfig,
     TauriError,
-    AlreadyOpen(String, String),
-    NoSuchProject(),
+    AlreadyOpen,
+    NoSuchProject,
     SerdeError,
     UpdaterError,
 }
 
 impl From<std::io::Error> for Error {
     fn from(err: std::io::Error) -> Self {
-        let kind = ErrorKind::IO(err.kind().to_string(), err.to_string());
+        let kind = ErrorKind::IO;
 
-        Error::new(kind, "IO Error")
+        Error::new(kind, format!("IO Error: {}, {}", err.kind().to_string(), err.to_string()))
     }
 }
 
