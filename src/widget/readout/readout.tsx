@@ -1,5 +1,5 @@
-import React, {useCallback, useEffect, useMemo, useRef, useState} from "react";
-import {Tool, ToolContainerProps, WidgetBehavior} from "../tool.ts";
+import React, {useCallback, useEffect, useRef, useState} from "react";
+import {ToolContainerProps, WidgetBehavior, WidgetHandler} from "../widget.ts";
 import {Project} from "../../device.tsx";
 import {parseReadouts, ReadoutConfiguration} from "./common.tsx";
 
@@ -9,17 +9,12 @@ type ReadoutValue = {
     count: number // The count that has gone into average.
 }
 
-const Widget: React.FC<{ project: Project, behavior: WidgetBehavior & { type: "readout" } }> = ({
-                                                                                                   project,
-                                                                                                   behavior
-                                                                                               }) => {
+const Widget: React.FC<{ project: Project, behavior: WidgetBehavior<"readout"> }> = ({
+                                                                                         project,
+                                                                                         behavior
+                                                                                     }) => {
     const rawBuffer = useRef<string>("")
     const values = useRef<Map<string, ReadoutValue>>(new Map())
-
-    const componentsSet = useMemo(() =>
-            new Set(behavior.components),
-        [behavior.components]
-    );
 
     const [displayValues, setDisplayValues] = useState(() => new Map<string, ReadoutValue>());
 
@@ -39,7 +34,6 @@ const Widget: React.FC<{ project: Project, behavior: WidgetBehavior & { type: "r
             // Get the previous data for this component
             const past = values.current.get(component);
 
-            console.log(component, value);
             // Set the new data, accumulating count and average
             values.current.set(component, {
                 current: value,
@@ -49,7 +43,7 @@ const Widget: React.FC<{ project: Project, behavior: WidgetBehavior & { type: "r
         }
 
         rawBuffer.current = full.substring(result.lastMatchEnd);
-    }, [componentsSet]);
+    }, [behavior]);
 
     useEffect(() => {
         const raw = project.registerListener.raw((buf) => {
@@ -160,7 +154,7 @@ const ValueTab: React.FC<{
 }
 
 const Header: React.FC<{
-    behavior: WidgetBehavior & { type: "readout" },
+    behavior: WidgetBehavior<"readout">,
     Container: React.FC<ToolContainerProps>
 }> = ({Container}) => {
     return <Container>
@@ -172,12 +166,13 @@ const Header: React.FC<{
     </Container>
 }
 
-export const Readout: Tool = {
-    header(behavior: WidgetBehavior, container: React.FC<ToolContainerProps>): React.ReactElement {
-        return <Header behavior={behavior as WidgetBehavior & { type: "readout" }} Container={container}/>;
+export const Readout: WidgetHandler<"readout"> = {
+    header(behavior, container): React.ReactElement {
+        return <Header behavior={behavior} Container={container}/>;
     },
     type: "readout",
+    behaviorType: "readout",
     displayName: "Readout",
-    widget: (s, behavior) => <Widget project={s} behavior={behavior as WidgetBehavior & { type: "readout" }}/>,
-    configurator: (s) => <ReadoutConfiguration setBehavior={s}/>
+    widget: (s, behavior) => <Widget project={s} behavior={behavior}/>,
+    configurator: ({behavior, setBehavior}) => <ReadoutConfiguration behavior={behavior} setBehavior={setBehavior}/>
 }

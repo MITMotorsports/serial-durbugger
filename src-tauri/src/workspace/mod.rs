@@ -1,7 +1,6 @@
 use crate::config::BuilderConfig;
 use crate::drive::{Drive, Vehicle};
 use crate::err::Error;
-use crate::err::ErrorKind::{IO, SerdeError};
 use crate::workspace::routes::SavePath;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
@@ -10,7 +9,7 @@ use std::fmt::Debug;
 use std::fs::{DirEntry, File};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
-use std::time::{Instant, SystemTime, UNIX_EPOCH};
+use std::time::Instant;
 use std::{fs, io};
 use tauri::{Manager, generate_handler};
 
@@ -22,6 +21,8 @@ pub struct Workspace {
 
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
 pub struct Widget {
+    #[serde(rename = "type")]
+    pub _type: String,
     pub pos: Position,
     pub behavior: WidgetBehavior,
 }
@@ -29,22 +30,16 @@ pub struct Widget {
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
 #[serde(tag = "type", rename_all = "camelCase")]
 pub enum WidgetBehavior {
-    #[serde(rename_all = "camelCase")]
+    None,
     Readout { components: Vec<String> },
-    #[serde(rename_all = "camelCase")]
-    ReadoutTimeline { components: Vec<String> },
-    #[serde(rename_all = "camelCase")]
-    Raw {},
-    #[serde(rename_all = "camelCase")]
-    LogViewer {},
-    #[serde(rename_all = "camelCase")]
     CommandPanel { schema: Vec<CommandDefinition> },
+    Logs { filter: Vec<String> },
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
 #[serde(tag = "type", rename_all = "camelCase")]
 pub struct CommandParameter {
-    pub id: u64,
+    pub index: u64,
     pub display_name: String,
     #[serde(rename = "type")]
     pub value_type: String,
@@ -53,8 +48,9 @@ pub struct CommandParameter {
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
 #[serde(tag = "type", rename_all = "camelCase")]
 pub struct CommandDefinition {
-    id: String,
+    id: u64,
     name: String,
+    display_name: String,
     icon: String,
     parameters: Vec<CommandParameter>,
 }
@@ -95,9 +91,11 @@ impl WorkspaceHandler {
             let path = x.path();
 
             let file = File::open(path)?;
-            let workspace: Workspace = serde_json::from_reader(file)?;
+            let workspace = serde_json::from_reader::<File, Workspace>(file);
 
-            workspaces.insert(workspace.id.clone(), workspace);
+            if let Ok(workspace) = workspace {
+                workspaces.insert(workspace.id.clone(), workspace);
+            }
         }
 
         Ok(WorkspaceHandler { workspaces })

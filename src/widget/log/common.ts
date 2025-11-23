@@ -22,10 +22,8 @@ export function parseLogContent(content: string): LogParseResult {
     for (let line of content.split('\n')) {
         LOG_REGEX.lastIndex = 0
         const match = LOG_REGEX.exec(line);
-        console.log(match)
 
         if (!match) continue
-
 
         endIndex = (match.index ?? 0) + match[0].length;
 

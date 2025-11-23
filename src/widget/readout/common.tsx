@@ -1,6 +1,6 @@
-import {SetBehavior} from "../tool.ts";
+import {SetBehavior, WidgetBehavior} from "../widget.ts";
 import Input from "../../component/input.tsx";
-import React, {useCallback, useEffect, useState} from "react";
+import React, {useCallback, useState} from "react";
 import Button from "../../component/button.tsx";
 import {useAlerts} from "../../alert.tsx";
 
@@ -41,7 +41,6 @@ export function parseReadouts(
         const component = match[1];
         const valueStr = match[2];
 
-        console.log(JSON.stringify(component));
         if (validComponents.includes(component)) {
             // match.index is the starting index of the full match (match[0])
             // Since we want the end of the VALUE, we add the length of the full match.
@@ -59,8 +58,7 @@ export function parseReadouts(
     return { values: readouts, lastMatchEnd };
 }
 
-export const ReadoutConfiguration: React.FC<{ setBehavior: SetBehavior }> = ({setBehavior}) => {
-    const [components, setComponents] = useState<string[]>([]);
+export const ReadoutConfiguration: React.FC<{ behavior: WidgetBehavior<"readout"> | null, setBehavior: SetBehavior<"readout">}> = ({behavior, setBehavior}) => {
     const [newComponent, setNewComponent] = useState<string>('');
     const alerts = useAlerts()
 
@@ -69,23 +67,22 @@ export const ReadoutConfiguration: React.FC<{ setBehavior: SetBehavior }> = ({se
         const trimmedComponent = newComponent.trim();
         if (trimmedComponent) {
             // Check for duplicates before adding
-            if (!components.includes(trimmedComponent)) {
-                setComponents(prev => [...prev, trimmedComponent]);
+            if (!behavior?.components?.includes(trimmedComponent)) {
+                setBehavior({
+                    components: [...(behavior?.components ?? []), trimmedComponent],
+                })
                 setNewComponent(''); // Clear the input field
             } else {
                 alerts.showAlert("warning", `The component ${trimmedComponent} is already added`);
             }
         }
-    }, [newComponent, components]);
+    }, [behavior, newComponent]);
 
     const handleRemoveComponent = useCallback((componentToRemove: string) => {
-        setComponents(prev => prev.filter(c => c !== componentToRemove));
-    }, []);
-
-    // Effect to notify the parent when the components list changes
-    useEffect(() => {
-        setBehavior({ components });
-    }, [components, setBehavior]);
+        setBehavior({
+            components: behavior?.components?.filter(c => c !== componentToRemove) ?? [],
+        })
+    }, [behavior]);
 
     // Handler for the 'Enter' key press on the input
     const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -101,7 +98,9 @@ export const ReadoutConfiguration: React.FC<{ setBehavior: SetBehavior }> = ({se
             <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
                 <Input
                     value={newComponent}
-                    onChange={(e) => setNewComponent(e.target.value)}
+                    onChange={(e) => {
+                        setNewComponent(e.target.value)
+                    }}
                     onKeyDown={handleKeyDown}
                     placeholder="Enter component ID..."
                 />
@@ -114,12 +113,12 @@ export const ReadoutConfiguration: React.FC<{ setBehavior: SetBehavior }> = ({se
             </div>
 
             <div style={{ marginTop: '20px' }}>
-                {components.length === 0 ? (
+                {behavior?.components?.length === 0 ? (
                     <p style={{ color: '#666' }}></p>
                 ) : (
                     // Display list with flex or a list style for better formatting
                     <ul style={{ listStyleType: 'none', padding: 0 }}>
-                        {components.map((component) => (
+                        {(behavior?.components ?? []).map((component) => (
                             <li
                                 key={component}
                                 style={{

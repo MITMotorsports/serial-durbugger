@@ -1,6 +1,6 @@
 import SessionManager from "./session_manager.tsx";
 import ReactDOM from "react-dom/client";
-import {Tool} from "./widget/tool.ts";
+import {WidgetHandler} from "./widget/widget.ts";
 import {ReadoutTimeline} from "./widget/readout/readout_timeline.tsx";
 import {Raw} from "./widget/raw.tsx";
 import {Readout} from "./widget/readout/readout.tsx";
@@ -11,7 +11,7 @@ import {CommandSender} from "./widget/command_panel.tsx";
 import UpdateHelper from "./update.tsx";
 import {invoke} from "@tauri-apps/api/core";
 
-export const toolRegistry: Tool[] = [
+export const toolRegistry: WidgetHandler<any>[] = [
     ReadoutTimeline, Raw, Readout, LogViewer, CommandSender
 ]
 

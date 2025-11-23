@@ -3,7 +3,7 @@ import {useAlerts} from "../../alert.tsx";
 import {toolRegistry} from "../../main.tsx";
 import {Project} from "../../device.tsx";
 import {SessionWindow} from "../../session_manager.tsx";
-import {BoundingBox, Widget} from "../../widget/tool.ts";
+import {BoundingBox, Widget} from "../../widget/widget.ts";
 import {ActiveDrag, ActiveResize, DragTarget, ResizeBorder, WidgetRegion} from "./types.ts";
 import {invoke} from "@tauri-apps/api/core";
 import {calculateEmptyRegions, findAffectedWidgets, mergeActiveList} from "./utils.ts";
@@ -11,10 +11,10 @@ import {findDragTarget, recalculateMovement, recalculateWidgetsForDragEnd} from 
 import {recalculateWidgetsForResize} from "./resize.ts";
 import ToolRegion from "../../component/panel_section.tsx";
 import ResizeAware from "./resize.tsx";
-import WidgetHeader from "./header.tsx";
-import WidgetConfigurationBox from "./configuration.tsx";
+import EmptyRegionBox, {ConfigurationState, WidgetConfigurationPopup} from "./configuration.tsx";
 import {DEBUG} from "./const.tsx";
 import {BackendError} from "../../err.ts";
+import WidgetHeader from "./header.tsx";
 
 const Workspace: React.FC<{ id: string, project: Project } & SessionWindow> = ({
                                                                                    id,
@@ -35,8 +35,12 @@ const Workspace: React.FC<{ id: string, project: Project } & SessionWindow> = ({
     const activeDragRef = useRef<ActiveDrag | null>(null);
     const dragTargetRef = useRef<DragTarget | null>(null);
 
-    const modified = useRef<Widget[]>([]);
+    const modified = useRef<Widget<any>[]>([]);
     const alerts = useAlerts();
+
+    const [configurationState, setConfigurationState] = useState<ConfigurationState>({
+        state: null
+    });
 
     useLayoutEffect(() => {
         let listener = () => {
@@ -64,6 +68,7 @@ const Workspace: React.FC<{ id: string, project: Project } & SessionWindow> = ({
             }).then(() => {
                 modified.current = [];
             }).catch((e) => {
+                console.log(modified.current)
                 alerts.showAlert("error", e.toString())
             })
         }, 1000);
@@ -107,7 +112,7 @@ const Workspace: React.FC<{ id: string, project: Project } & SessionWindow> = ({
         invoke("workspace_get", {
             id: id
         }).then((result) => {
-            const layout = result as { id: string, widgets: Widget[] }
+            const layout = result as { id: string, widgets: Widget<any>[] }
 
             let id = 0
             let regions = layout.widgets.map((w) => ({
@@ -137,7 +142,7 @@ const Workspace: React.FC<{ id: string, project: Project } & SessionWindow> = ({
         setWidgets(currentWidgets => currentWidgets.filter(w => w.id !== id));
     }
 
-    const handleAddWidget = (widget: Widget) => {
+    const handleAddWidget = (widget: Widget<any>) => {
         setWidgets((currentWidgets) => {
             // Lazy new ID
             const newID = `widget-at-${Date.now()}`
@@ -227,7 +232,7 @@ const Workspace: React.FC<{ id: string, project: Project } & SessionWindow> = ({
         window.removeEventListener('mouseup', handleGlobalDragEnd);
     }
 
-    const handleResizeStart = (type: ResizeBorder, widget: Widget, id: string) => {
+    const handleResizeStart = (type: ResizeBorder, widget: Widget<any>, id: string) => {
         // Use new helper to find all affected widgets based on coordinates
         const affectedWidgets = findAffectedWidgets(widget, type, widgets);
         const mergedAffected = mergeActiveList(affectedWidgets);
@@ -264,12 +269,53 @@ const Workspace: React.FC<{ id: string, project: Project } & SessionWindow> = ({
     }
 
     return <div className={"h-full p-0.5 bg-gray-100"}>
+        {!!configurationState.state && <WidgetConfigurationPopup
+            project={project}
+            open={!!configurationState.state}
+            initialType={configurationState.state == "reconfigure" ? configurationState.type : null}
+            initialBehavior={
+                configurationState.state == "reconfigure" ? widgets.find((it) => it.id == configurationState.id)?.widget?.behavior ?? null : null
+            }
+            finalize={(type, b) => {
+                let activeState = configurationState;
+
+                if (activeState.state == "reconfigure") {
+                    setWidgets((curr) => curr.map((it) => {
+                        if (it.id == activeState.id) {
+                            return {
+                                id: id,
+                                widget: {
+                                    pos: it.widget.pos,
+                                    behavior: b,
+                                    type: it.widget.type
+                                }
+                            }
+                        } else {
+                            return it
+                        }
+                    }))
+                } else if (activeState.state == "new") {
+                    handleAddWidget({
+                        type: type,
+                        pos: activeState.bounds,
+                        behavior: b
+                    })
+                }
+                setConfigurationState({
+                    state: null,
+                });
+            }}
+            onClose={() => {
+                setConfigurationState({
+                    state: null,
+                });
+            }}
+        />}
+
         <div className={"h-full"} ref={container}>
             {bound && widgets.map(({widget, id}, key) => {
-                let behavior = widget.behavior!!;
-
                 let tool = toolRegistry
-                    .find((it) => it.type == behavior.type);
+                    .find((it) => it.type == widget.type);
 
                 if (!tool) return <>Tool not found?</>
                 return <ToolRegion
@@ -288,15 +334,22 @@ const Workspace: React.FC<{ id: string, project: Project } & SessionWindow> = ({
                     }}>
                         <div className={"h-full flex flex-col overflow-scroll rounded-[15px]"}>
                             {DEBUG && <div>ID: ${id}</div>}
-                            {tool.header(behavior, (props) => {
+                            {tool.header(widget.behavior!!, (props) => {
                                 return <WidgetHeader
                                     {...props}
                                     onClose={() => handleRemoveWidget(id)}
                                     onStartDrag={(e) => handleDragStart(e, {widget, id})}
+                                    requestReconfiguration={() => {
+                                        setConfigurationState({
+                                            state: "reconfigure",
+                                            type: widget.type,
+                                            id: id
+                                        })
+                                    }}
                                 />
                             })}
                             <span className="flex-1 min-h-0">
-                            {tool.widget(project, behavior)}
+                            {tool.widget(project, widget.behavior!!)}
                         </span>
                         </div>
                     </ResizeAware>
@@ -318,10 +371,10 @@ const Workspace: React.FC<{ id: string, project: Project } & SessionWindow> = ({
                     return (
                         <div style={style} className={"overflow-scroll"} key={`empty-${index}`}>
                             <div>
-                                <WidgetConfigurationBox finalize={(behavior) => {
-                                    handleAddWidget({
-                                        behavior: behavior,
-                                        pos: region
+                                <EmptyRegionBox onClick={() => {
+                                    setConfigurationState({
+                                        state: "new",
+                                        bounds: region
                                     })
                                 }}/>
                             </div>

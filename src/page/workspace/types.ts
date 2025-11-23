@@ -1,4 +1,4 @@
-import {BoundingBox, Widget} from "../../widget/tool.ts";
+import {BoundingBox, Widget} from "../../widget/widget.ts";
 
 export enum ResizeBorder {
     TopRight,
@@ -36,7 +36,7 @@ export type DragTarget = {
 
 
 export type WidgetRegion = {
-    widget: Widget,
+    widget: Widget<any>,
     id: string,
     // 'neighbors' property completely removed
 }

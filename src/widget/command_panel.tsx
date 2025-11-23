@@ -1,41 +1,32 @@
-import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
-import {SetBehavior, Tool, ToolContainerProps, WidgetBehavior} from "./tool.ts";
+import React, {useCallback, useMemo, useRef, useState} from 'react';
+import {SetBehavior, ToolContainerProps, WidgetBehavior, WidgetHandler} from "./widget.ts";
 import {Project} from "../device.tsx";
 import {useAlerts} from "../alert.tsx";
 import {Dropdown, DropdownItem, DropdownItemProps} from "../component/dropdown.tsx";
 
-// --- Type Definitions ---
-
 export type CommandType = 'string' | 'number'
 
-// (No changes)
 export type CommandParameterDefinition = {
-    id: number;
+    index: number;
     displayName: string;
     type: CommandType;
 };
 
 export type CommandDefinition = {
-    id: string;
+    id: number,
     name: string;
-    icon: string; // This is now just a string, e.g., "Sun"
+    displayName: string;
+    icon: string;
     parameters: CommandParameterDefinition[];
 };
 
-// type CommandSenderBehavior = WidgetBehavior & {
-//     type: "commandSender";
-//     commandDefinitions: CommandDefinition[];
-// };
 
 export type CommandValue = string | number | null;
 
-// --- Icon Map & Helpers (Removed) ---
-// No icon map or getIcon function needed.
-
 // --- Helper Function ---
 // Updated: Initializes to 0 or "" since 'default' is removed
-const initializeCommandValues = (commands: CommandDefinition[]): Map<string, Map<number, CommandValue>> => {
-    const map = new Map<string, Map<number, CommandValue>>()
+const initializeCommandValues = (commands: CommandDefinition[]): Map<number, Map<number, CommandValue>> => {
+    const map = new Map<number, Map<number, CommandValue>>()
     commands.forEach(c => {
         const params = new Map<number, CommandValue>()
         // c.parameters.forEach(parameter => {
@@ -55,14 +46,14 @@ const CommandParameterInput: React.FC<{
     value: any,
     onChange: (e: React.ChangeEvent<HTMLInputElement>) => void
 }> = ({parameter, value, onChange}) => {
-    const {id, displayName, type} = parameter;
+    const {index, displayName, type} = parameter;
 
     let inputComponent;
     if (type === 'number') {
         inputComponent = (
             <input
                 type="number"
-                id={`${id}`}
+                id={`${index}`}
                 value={value}
                 onChange={onChange}
                 className="flex-grow w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-gray-800"
@@ -72,7 +63,7 @@ const CommandParameterInput: React.FC<{
         inputComponent = (
             <input
                 type="text"
-                id={`${id}`}
+                id={`${index}`}
                 value={value}
                 onChange={onChange}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-gray-800"
@@ -82,8 +73,8 @@ const CommandParameterInput: React.FC<{
 
     return (
         <div className="mb-4 last:mb-0">
-            <label htmlFor={`${id}`} className="block text-sm font-medium text-gray-700 mb-1">
-                {displayName || id}
+            <label htmlFor={`${index}`} className="block text-sm font-medium text-gray-700 mb-1">
+                {displayName}
             </label>
             {inputComponent}
         </div>
@@ -96,12 +87,12 @@ const CommandParameterInput: React.FC<{
  */
 const CommandItem: React.FC<{
     command: CommandDefinition,
-    expandedId: string | null,
-    onExpand: (id: string) => void,
+    expandedId: number | null,
+    onExpand: (id: number) => void,
     onCollapse: () => void,
-    onExecute: (id: string) => void,
+    onExecute: (id: number) => void,
     values: Map<number, CommandValue>,
-    onValueChange: (commandId: string, paramId: number, newValue: CommandValue) => void
+    onValueChange: (commandId: number, paramId: number, newValue: CommandValue) => void
 }> = ({
           command,
           expandedId,
@@ -123,25 +114,6 @@ const CommandItem: React.FC<{
     const [style, setStyle] = useState({});
 
     const handleExpandClick = () => {
-        // if (!cardRef.current || !contentAreaRef.current) return;
-        // const cardRect = cardRef.current.getBoundingClientRect();
-        // const contentRect = contentAreaRef.current.getBoundingClientRect();
-
-        // const origin = {
-        //     x: cardRect.top - contentRect.top,
-        //     y: cardRect.left - contentRect.left,
-        //     width: cardRect.width,
-        //     height: cardRect.height,
-        // };
-        // setOriginRect(origin);
-        //
-        // setStyle({
-        //     ...origin,
-        //     position: 'absolute',
-        //     // zIndex: 5,
-        //     transition: 'none',
-        // });
-
         onExpand(id);
 
         // console.log(contentRect.y)
@@ -149,12 +121,8 @@ const CommandItem: React.FC<{
             setIsAnimating(true);
             setIsExpandedLayout(true);
             setStyle({
-                // top: 0,
-                // left: 0,
                 width: '100%',
                 height: "100%",
-                // position: "absolute",
-                // zIndex: 10,
                 transition: 'all 0.35s ease-in-out',
             });
             setTimeout(() => setIsAnimating(false), 350);
@@ -183,22 +151,13 @@ const CommandItem: React.FC<{
         onExecute(id);
     };
 
-    const handleParamChange = (paramId: number, e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleParamChange = (paramIndex: number, e: React.ChangeEvent<HTMLInputElement>) => {
         const newValue = e.target.type === 'number' ? parseFloat(e.target.value) : e.target.value;
-        onValueChange(id, paramId, newValue);
+        onValueChange(id, paramIndex, newValue);
     };
-
-    // const rootClasses = ;
 
     const layoutRootClasses = `w-full h-full ${isExpanded ? 'p-4' : ''}`;
 
-    // const iconGroupClasses =
-
-    // const iconContainerClasses = ;
-
-    // const textClasses = ;
-
-    // const playButtonClasses = ;
 
     const paramsContainerClasses = `
     transition-opacity duration-300 ease-in-out
@@ -252,14 +211,14 @@ const CommandItem: React.FC<{
                     {parameters.length === 0 ? (
                         <p className="text-gray-500">This command has no parameters.</p>
                     ) : (
-                        parameters.map(param => (
-                            <CommandParameterInput
-                                key={param.id}
+                        parameters.map(param => {
+                            return <CommandParameterInput
+                                key={param.index}
                                 parameter={param}
-                                value={values.get(param.id)}
-                                onChange={(e) => handleParamChange(param.id, e)}
+                                value={values.get(param.index)}
+                                onChange={(e) => handleParamChange(param.index, e)}
                             />
-                        ))
+                        })
                     )}
                 </div>
                 <button
@@ -284,21 +243,21 @@ const CommandItem: React.FC<{
 /**
  * Main Widget Component
  */
-const Widget: React.FC<{ project: Project, behavior: WidgetBehavior & { type: "commandPanel" } }> = ({
+const WidgetView: React.FC<{ project: Project, behavior: WidgetBehavior<"commandPanel"> }> = ({
                                                                                                          project,
                                                                                                          behavior
                                                                                                      }) => {
     const commands = behavior.schema || [];
-    const [expandedCommandId, setExpandedCommandId] = useState<string | null>(null);
+    const [expandedCommandId, setExpandedCommandId] = useState<number | null>(null);
     const initialCommandValues = useMemo(() => initializeCommandValues(commands), [behavior.schema]);
-    const [commandValues, setCommandValues] = useState<Map<string, Map<number, CommandValue>>>(initialCommandValues);
+    const [commandValues, setCommandValues] = useState<Map<number, Map<number, CommandValue>>>(initialCommandValues);
     const alerts = useAlerts()
     // useEffect(() => {
     //     setCommandValues(initialCommandValues);
     //     setExpandedCommandId(null);
     // }, [initialCommandValues]);
 
-    const handleExpand = useCallback((commandId: string) => {
+    const handleExpand = useCallback((commandId: number) => {
         setExpandedCommandId(commandId);
     }, []);
 
@@ -306,7 +265,7 @@ const Widget: React.FC<{ project: Project, behavior: WidgetBehavior & { type: "c
         setExpandedCommandId(null);
     }, []);
 
-    const handleValueChange = useCallback((commandId: string, paramId: number, newValue: any) => {
+    const handleValueChange = useCallback((commandId: number, paramId: number, newValue: any) => {
         setCommandValues(prev => {
             const params = prev.get(commandId)
             if (!params) {
@@ -327,7 +286,7 @@ const Widget: React.FC<{ project: Project, behavior: WidgetBehavior & { type: "c
         // }));
     }, []);
 
-    const handleExecute = useCallback((commandId: string) => {
+    const handleExecute = useCallback((commandId: number) => {
         const def = commands.find((command) => command.id === commandId);
         const values = def?.id ? commandValues.get(def.id) : undefined;
         if (!def || !values) {
@@ -335,14 +294,14 @@ const Widget: React.FC<{ project: Project, behavior: WidgetBehavior & { type: "c
         }
 
         for (let parameter of def.parameters) {
-            if (!values.has(parameter.id)) {
+            if (!values.has(parameter.index)) {
                 alerts.showAlert("warning", "Configure all the parameters of this command first.")
                 return
             }
         }
 
-        const sortedValues = def.parameters.sort((a, b) => a.id - b.id)
-            .map((p) => values.get(p.id)!)
+        const sortedValues = def.parameters.sort((a, b) => a.index - b.index)
+            .map((p) => values.get(p.index)!)
 
         const command = `[${def.id} ${sortedValues.join(" ")}]`
 
@@ -377,7 +336,7 @@ const Widget: React.FC<{ project: Project, behavior: WidgetBehavior & { type: "c
  * Header Component
  */
 const Header: React.FC<{
-    behavior: WidgetBehavior & { type: "commandPanel" },
+    behavior: WidgetBehavior<"commandPanel">,
     Container: React.FC<ToolContainerProps>
 }> = ({Container}) => {
     return (
@@ -441,7 +400,7 @@ const CommandDefinitionConfiguration: React.FC<{
     definition: CommandDefinition,
     setDefinition: (definition: CommandDefinition) => void
 }> = ({definition, setDefinition}) => {
-    const paramCounter = Math.max(...definition.parameters.map(it => it.id), 0);
+    const paramCounter = Math.max(...definition.parameters.map(it => it.index), 0);
 
     const handleAddParam = () => {
         const newId = paramCounter + 1;
@@ -450,7 +409,7 @@ const CommandDefinitionConfiguration: React.FC<{
             parameters: [
                 ...definition.parameters,
                 {
-                    id: newId,
+                    index: newId,
                     displayName: `Parameter ${newId}`,
                     type: "string",
                 }
@@ -458,25 +417,25 @@ const CommandDefinitionConfiguration: React.FC<{
         });
     }
 
-    const handleRemoveParam = (id: number) => {
+    const handleRemoveParam = (index: number) => {
         setDefinition({
             ...definition,
-            parameters: definition.parameters.filter(it => it.id !== id),
+            parameters: definition.parameters.filter(it => it.index !== index),
         });
     }
 
-    return <div className="w-2/3 p-4 overflow-y-auto">
+    return <div className="w-1/2 p-4 overflow-y-auto">
         <div>
             <h3 className="text-lg font-semibold mb-4">Edit Command</h3>
-            <ConfigInput label="Command ID" value={definition.id}
-                         onChange={val => setDefinition({
-                             ...definition,
-                             id: val
-                         })}/>
-            <ConfigInput label="Display Name" value={definition.name}
+            <ConfigInput label="Command ID" value={definition.name}
                          onChange={val => setDefinition({
                              ...definition,
                              name: val
+                         })}/>
+            <ConfigInput label="Display Name" value={definition.displayName}
+                         onChange={val => setDefinition({
+                             ...definition,
+                             displayName: val
                          })}/>
             <ConfigInput label="Icon Name" value={definition.icon}
                          onChange={val => setDefinition({
@@ -500,13 +459,14 @@ const CommandDefinitionConfiguration: React.FC<{
                         <p className="text-gray-500 text-sm">No parameters defined.</p>
                     ) : (
                         definition.parameters.map((param) => (
-                            <div key={param.id}
+                            <div key={param.index}
                                  className="p-3 border border-gray-200 rounded-md bg-gray-50 relative">
                                 <button
-                                    onClick={() => handleRemoveParam(param.id)}
+                                    onClick={() => handleRemoveParam(param.index)}
                                     className="absolute top-2 right-2 p-1 text-gray-400 hover:text-amber-600 rounded-full font-bold"
                                 >
-                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24"
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none"
+                                         viewBox="0 0 24 24"
                                          stroke="currentColor">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
                                               d="M6 18L18 6M6 6l12 12"/>
@@ -516,7 +476,7 @@ const CommandDefinitionConfiguration: React.FC<{
                                              onChange={val => {
                                                  setDefinition({
                                                      ...definition,
-                                                     parameters: definition.parameters.map(p => p.id == param.id ? {
+                                                     parameters: definition.parameters.map(p => p.index == param.index ? {
                                                              ...param,
                                                              displayName: val,
                                                          } : p
@@ -526,7 +486,7 @@ const CommandDefinitionConfiguration: React.FC<{
                                 <ConfigSelect label="Type" value={param.type}
                                               onChange={val => setDefinition({
                                                   ...definition,
-                                                  parameters: definition.parameters.map(p => p.id == param.id ? {
+                                                  parameters: definition.parameters.map(p => p.index == param.index ? {
                                                           ...param,
                                                           type: val,
                                                       } : p
@@ -549,85 +509,88 @@ const CommandDefinitionConfiguration: React.FC<{
  * Updated: Uses local state and a "Finalize" button.
  */
 const CommandSenderConfiguration: React.FC<{
-    // behavior: WidgetBehavior & { type: "commandPanel" },
-    setBehavior: SetBehavior
-}> = ({setBehavior}) => {
-    const commandIdCounter = useRef(1);
+    behavior: WidgetBehavior<"commandPanel">,
+    setBehavior: SetBehavior<"commandPanel">,
+    project: Project,
+}> = ({behavior, setBehavior}) => {
+    const commandIdCounter = useRef(Math.max(0, ...behavior.schema.map((it) => it.id)) + 1);
 
-    // Initialize local state, adding _internalId to each command and parameter
-    const [definitions, setDefinitions] = useState<Map<number, CommandDefinition>>(new Map());
     const [selected, setSelected] = useState<number | null>(null);
 
-    const selectedCommand = selected ? definitions.get(selected) : undefined// .find(c => c._internalId === selected);
-
-    useEffect(() => {
-        handleFinalize()
-    }, [])
+    const selectedCommand = selected ? behavior.schema.find((it) => {
+        return it.id == selected
+    }) : undefined
 
     // --- Command Handlers (Update Local State using _internalId) ---
     const handleAddCommand = () => {
         let id = commandIdCounter.current++;
         const newCommand: CommandDefinition = {
-            id: `command_${id}`, // User-configurable ID
-            name: 'New Command',
+            id: id,
+            name: `command_${id}`,
+            displayName: `New Command ${id}`,
             icon: 'Default',
             parameters: []
         };
-        setDefinitions(current => {
-            current.set(id, newCommand)
-            return current
-        });
+        setBehavior({
+            schema: [
+                ...behavior.schema,
+                newCommand
+            ]
+        })
         setSelected(id);
     };
 
-    const handleRemoveCommand = (internalId: number) => {
-        setDefinitions(curr => {
-            const next = new Map(curr)
-            next.delete(internalId)
-            return next
+    const handleRemoveCommand = (id: number) => {
+        setBehavior({
+            schema: behavior.schema.filter(it => it.id !== id)
         })
-        if (selected === internalId) {
+        // setDefinitions(curr => {
+        //     const next = new Map(curr)
+        //     next.delete(internalId)
+        //     return next
+        // })
+        if (selected === id) {
             setSelected(null);
         }
     };
 
-    const handleFinalize = () => {
-        const cleanCommands: CommandDefinition[] = Array.from(definitions.values())
-
-        console.log(cleanCommands)
-        setBehavior({
-            schema: cleanCommands,
-        });
-    };
+    // const handleFinalize = () => {
+    //     const cleanCommands: CommandDefinition[] = Array.from(definitions.values())
+    //
+    //     console.log(cleanCommands)
+    //     setBehavior({
+    //         schema: cleanCommands,
+    //     });
+    // };
 
     return (
-        <div className="flex flex-col h-full min-h-[400px]">
+        <div className="flex flex-col w-full h-full min-h-[400px]">
             <div className="flex flex-1 overflow-hidden">
-                <div className="w-1/3 border-r mr-3 border-gray-200 p-4 overflow-y-auto">
+                <div className="w-1/2 border-r mr-3 border-gray-200 p-4 overflow-y-auto">
                     <h3 className="text-lg font-semibold mb-4">Commands</h3>
                     <button
                         onClick={handleAddCommand}
-                        className="w-full flex items-center justify-center px-4 py-2 mb-4 bg-blue-500 text-white rounded-md hover:bg-blue-600"
+                        className="flex items-center justify-center px-4 py-2 mb-4 bg-blue-500 text-white rounded-md hover:bg-blue-600"
                     >
                         <span className="text-xl mr-2">+</span> Define Command
                     </button>
-
                     <div className="space-y-2">
-                        {Array.from(definitions.entries()).map(([id, cmd]) => (
+                        {behavior.schema.map((cmd) => (
                             <div
-                                key={id}
-                                onClick={() => setSelected(id)}
-                                className={`flex items-center justify-between p-2 rounded-md cursor-pointer ${selected === id ? 'bg-blue-100' : 'hover:bg-gray-100'}`}
+                                key={cmd.id}
+                                onClick={() => setSelected(cmd.id)}
+                                className={`flex items-center justify-between p-2 rounded-md cursor-pointer ${selected === cmd.id ? 'bg-blue-100' : 'hover:bg-gray-100'}`}
                             >
-                                <span className="font-medium text-gray-800">{cmd.name}</span>
+                                <span className="font-medium text-gray-800">{cmd.displayName}</span>
                                 <button
                                     onClick={(e) => {
                                         e.stopPropagation();
-                                        handleRemoveCommand(id);
+                                        handleRemoveCommand(cmd.id);
                                     }}
                                     className="p-1 text-gray-400 hover:text-amber-600 rounded-full font-bold"
                                 >
-                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24"
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none"
+                                         viewBox="0 0 24 24"
                                          stroke="currentColor">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
                                               d="M6 18L18 6M6 6l12 12"/>
@@ -640,7 +603,7 @@ const CommandSenderConfiguration: React.FC<{
 
                 {/* Command Editor Panel */}
                 {!selectedCommand ? (
-                    <div className="flex my-auto text-center items-center justify-center h-full text-gray-500">
+                    <div className="w-1/2 flex my-auto text-center items-center justify-center h-full text-gray-500">
                         <p>
                             Select a command to edit or add a new one.
                         </p>
@@ -649,11 +612,14 @@ const CommandSenderConfiguration: React.FC<{
                     <CommandDefinitionConfiguration
                         definition={selectedCommand}
                         setDefinition={(def) => {
-                            setDefinitions(currentCommands => {
-                                currentCommands.set(selected!, def)
-                                return currentCommands
-                            });
-                            handleFinalize();
+                            setBehavior({
+                                schema: behavior.schema.map((it) => it.id == def.id ? def : it),
+                            })
+                            // setDefinitions(currentCommands => {
+                            //     currentCommands.set(selected!, def)
+                            //     return currentCommands
+                            // });
+                            // handleFinalize();
                         }}
                     />
                 )}
@@ -675,31 +641,25 @@ const CommandSenderConfiguration: React.FC<{
 /**
  * Tool Export
  */
-export const CommandSender: Tool = {
-    configurator(setBehavior
-                 :
-                 SetBehavior
-    ):
-        React.ReactElement {
-        return <CommandSenderConfiguration setBehavior={setBehavior}/>
-    }
-    ,
-    header(behavior
-           :
-           WidgetBehavior, container
-           :
-           React.FC<ToolContainerProps>
-    ):
-        React.ReactElement {
-        return <Header behavior={behavior as WidgetBehavior & { type: "commandPanel" }} Container={container}/>;
-    }
-    ,
-    type: "commandPanel",
-    displayName:
-        "Command Panel",
-    widget:
-        (project, behavior) => <Widget project={project}
-                                       behavior={behavior as WidgetBehavior & { type: "commandPanel" }}/>
-    // conf
-    // configurator: (behavior, setBehavior) => <CommandSenderConfiguration behavior={behavior as CommandSenderBehavior} setBehavior={setBehavior} />
+export const CommandSender: WidgetHandler<"commandPanel"> = {
+    configurator({project, behavior, setBehavior}): React.ReactElement {
+        return <CommandSenderConfiguration project={project} behavior={behavior ?? {
+            type: 'commandPanel',
+            schema: []
+        }} setBehavior={setBehavior}/>
+    },
+    header: (
+        behavior
+        , container
+    ) => <Header behavior={behavior} Container={container}/>,
+    type: "command-panel",
+    behaviorType: "commandPanel",
+    displayName: "Command Panel",
+    widget: (
+        project,
+        behavior
+    ) => <WidgetView
+        project={project}
+        behavior={behavior}
+    />
 };

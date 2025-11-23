@@ -1,5 +1,5 @@
 import React from "react";
-import {BoundingBox, Widget} from "../../widget/tool.ts";
+import {BoundingBox, Widget} from "../../widget/widget.ts";
 import {ActiveResize, ResizeBorder, WidgetRegion} from "./types.ts";
 import {findAffectedWidgets, mergeActiveList, overlaps, snapBoundingBox} from "./utils.ts";
 import {EPSILON, MINIMUM_LENGTH, SNAP_THRESHOLD} from "./const.tsx";
@@ -27,7 +27,7 @@ export function recalculateWidgetsForResize(activeResizeRef: React.RefObject<Act
         // This can happen if a widget is removed mid-drag, though unlikely
         if (!region) return null;
         return {...n, widget: region.widget};
-    }).filter(n => n !== null) as (ActiveResize & { widget: Widget })[]; // Filter out nulls
+    }).filter(n => n !== null) as (ActiveResize & { widget: Widget<any> })[]; // Filter out nulls
 
 
     // % mouse position

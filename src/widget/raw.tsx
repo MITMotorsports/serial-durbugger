@@ -1,6 +1,6 @@
 import React, {FormEvent, useEffect, useRef, useState} from "react";
 import {Project} from "../device.tsx";
-import {WidgetBehavior, SetBehavior, Tool, ToolContainerProps} from "./tool.ts";
+import {WidgetBehavior, SetBehavior, WidgetHandler, ToolContainerProps} from "./widget.ts";
 import {useAlerts} from "../alert.tsx";
 import {List, RowComponentProps, useDynamicRowHeight, useListRef} from "react-window";
 import FindTool from "../component/find.tsx";
@@ -212,15 +212,23 @@ function RawLine({index, lines, style, highlight}: RowComponentProps<RawLineProp
     )
 }
 
-const Configurator: React.FC<{ setBehavior: SetBehavior }> = ({setBehavior}) => {
+const Configurator: React.FC<{ setBehavior: SetBehavior<"none"> }> = ({setBehavior}) => {
     useEffect(() => {
         setBehavior({})
     }, [])
 
-    return <></>
+    return <>
+        <div className="p-4  h-full">
+            <h3 className="text-lg font-semibold ">Log Viewer Configuration</h3>
+            <p className="text-gray-600 mt-2">No configuration available for this tool.</p>
+        </div>
+    </>
 }
 
-const Header: React.FC<{ behavior: WidgetBehavior, Container: React.FC<ToolContainerProps> }> = ({Container}) => {
+const Header: React.FC<{
+    behavior: WidgetBehavior<"none">,
+    Container: React.FC<ToolContainerProps>
+}> = ({Container}) => {
     return <Container>
         <h2 className="p-2 text-lg md:text-xl font-semibold text-gray-900 shadow-sm">
             Device Terminal
@@ -228,12 +236,13 @@ const Header: React.FC<{ behavior: WidgetBehavior, Container: React.FC<ToolConta
     </Container>;
 }
 
-export const Raw: Tool = {
+export const Raw: WidgetHandler<"none"> = {
     type: "raw",
+    behaviorType: "none",
     displayName: "Raw Console Log",
     header: (behavior, container) => {
         return <Header behavior={behavior} Container={container}/>
     },
     widget: (s) => <Widget project={s}/>,
-    configurator: (s) => <Configurator setBehavior={s}/>
+    configurator: ({setBehavior}) => <Configurator setBehavior={setBehavior}/>
 }

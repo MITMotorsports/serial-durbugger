@@ -87,7 +87,6 @@ export default function FindTool({
 
     // Effect to call onFind whenever the currentMatchIndex or query changes
     useEffect(() => {
-        // console.log("Here: ", currentMatchIndex, searchResults, matchCount);
         if (currentMatchIndex >= 0 && currentMatchIndex < matchCount) {
             const selection = searchResults[currentMatchIndex];
             onFind(selection);

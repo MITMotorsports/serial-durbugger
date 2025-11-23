@@ -192,7 +192,7 @@ const AlertContainer: React.FC<{ alerts: Alert[]; dismiss: (id: string) => void 
     return (
         <div
             id="alert-container"
-            className="fixed top-4 right-4 z-50 flex flex-col items-end space-y-3 p-2
+            className="fixed top-4 right-4 z-100 flex flex-col items-end space-y-3 p-2
                        max-h-full overflow-y-auto"
         >
             {alerts.map((alert) => (

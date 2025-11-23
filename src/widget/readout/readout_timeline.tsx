@@ -1,4 +1,4 @@
-import {WidgetBehavior, Tool, ToolContainerProps} from "../tool.ts";
+import {WidgetBehavior, WidgetHandler, ToolContainerProps} from "../widget.ts";
 
 import React, {useEffect, useRef, useState} from 'react';
 import {CartesianGrid, Label, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis} from 'recharts';
@@ -34,10 +34,10 @@ const GROWTH_CONSTANT = 30
 
 const DO_SCROLL = false
 
-const Widget: React.FC<{ project: Project, behavior: WidgetBehavior & { type: "readoutTimeline" } }> = ({
-                                                                                                   project,
-                                                                                                   behavior
-                                                                                               }) => {
+const Widget: React.FC<{ project: Project, behavior: WidgetBehavior<"readout"> }> = ({
+                                                                                         project,
+                                                                                         behavior
+                                                                                     }) => {
     const [_, setRaw] = useState<string>("")
     const [data, setData] = useState<{ time: number, component: string, value: number }[]>([]);
     // Component -> averaged components
@@ -126,20 +126,6 @@ const Widget: React.FC<{ project: Project, behavior: WidgetBehavior & { type: "r
                 return base
             })
 
-
-        // for (const key of sortedValues) {
-        //     const [component, map] = key
-        //
-        //     const content =
-        //         .sort(([a], [b]) => a - b)
-        //         .map(([time, values]) => ({
-        //             time: time,
-        //             average: values.reduce((a, b) => a + b) / values.length,
-        //         }))
-        //
-        //     chartData.set(component, content)
-        // }
-
         setChartData(chartData);
 
         if (DO_SCROLL && sortedValues.size * GROWTH_CONSTANT > minWidth()) {
@@ -168,13 +154,6 @@ const Widget: React.FC<{ project: Project, behavior: WidgetBehavior & { type: "r
             <div className={`p-2 transition-all duration-300`}>
                 <div className="h-full flex flex-col">
                     <div className="flex justify-between items-start mb-4">
-
-                        {/*<div className="text-right">*/}
-                        {/*    <p className="text-xs md:text-sm font-semibold">Current Value</p>*/}
-                        {/*    <p className="text-2xl md:text-3xl font-bold text-[#2196F3]">{*/}
-                        {/*        data[data.length - 1]?.value?.toFixed(6) ?? "nan"*/}
-                        {/*    }</p>*/}
-                        {/*</div>*/}
                     </div>
                     <div className="absolute top-2 right-2 flex space-x-2 z-10 align-middle">
                         <h1 className={"my-auto"}>{timeSpans[zoomLevel]}ms</h1>
@@ -247,7 +226,7 @@ const Widget: React.FC<{ project: Project, behavior: WidgetBehavior & { type: "r
 }
 
 const Header: React.FC<{
-    behavior: WidgetBehavior & { type: "readoutTimeline" },
+    behavior: WidgetBehavior<"readout">,
     Container: React.FC<ToolContainerProps>
 }> = ({behavior, Container}) => {
     return <Container>
@@ -261,24 +240,20 @@ const Header: React.FC<{
                     color: LINE_COLORS[index % LINE_COLORS.length]
                 }}
             >
-                                {component}
+                {component}
                 {index + 1 != behavior.components.length ? ", " : ""}
-                            </span>)}
-            {/*<span>*/}
-            {/*    */}
-            {/*</span>*/}
-            {/*<span className="text-sm md:text-base font-bold text-[#F36A21]">{behavior.components.join(", ")}</span>*/}
+            </span>)}
         </div>
     </Container>
 }
 
-
-export const ReadoutTimeline: Tool = {
-    header(behavior: WidgetBehavior, container: React.FC<ToolContainerProps>): React.ReactElement {
-        return <Header behavior={behavior as WidgetBehavior & { type: "readoutTimeline" } } Container={container} />;
+export const ReadoutTimeline: WidgetHandler<"readout"> = {
+    header(behavior, container): React.ReactElement {
+        return <Header behavior={behavior} Container={container}/>;
     },
-    type: "readoutTimeline",
-    displayName: "Readout Timeline",
-    widget: (s, behavior) => <Widget project={s} behavior={behavior as WidgetBehavior & { type: "readoutTimeline" }}/>,
-    configurator: (s) => <ReadoutConfiguration setBehavior={s}/>
+    type: "readout-graph",
+    behaviorType: "readout",
+    displayName: "Readout Graph",
+    widget: (s, behavior) => <Widget project={s} behavior={behavior}/>,
+    configurator: ({behavior, setBehavior}) => <ReadoutConfiguration behavior={behavior} setBehavior={setBehavior}/>
 }

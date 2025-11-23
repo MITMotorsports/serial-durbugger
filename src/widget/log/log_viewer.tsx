@@ -1,8 +1,11 @@
 import {Project} from "../../device.tsx";
-import {Tool, ToolContainerProps, WidgetBehavior} from "../tool.ts";
+import {SetBehavior, ToolContainerProps, WidgetBehavior, WidgetHandler} from "../widget.ts";
 import React, {useCallback, useEffect, useRef, useState} from "react";
 import {LogEntry, parseLogContent} from "./common.ts";
 import {List, RowComponentProps, useDynamicRowHeight, useListRef} from "react-window";
+import {useAlerts} from "../../alert.tsx";
+import Button from "../../component/button.tsx";
+import {Autocomplete} from "../../component/autocomplete.tsx";
 
 const MAX_LOG_LINES = 20_000;
 const SCROLL_STOP_LOCK = 100
@@ -48,7 +51,7 @@ function getLogLevelClasses(level: string) {
 /**
  * This is the main widget component that displays the logs.
  */
-const Widget: React.FC<{ project: Project, behavior: WidgetBehavior & { type: "logViewer" } }> = ({project}) => {
+const Widget: React.FC<{ project: Project, behavior: WidgetBehavior<"logs"> }> = ({project, behavior}) => {
     const rawBuffer = useRef<string>("")
     const logs = useRef<LogEntry[]>([])
     const [displayLogs, setDisplayLogs] = useState<LogEntry[]>([]);
@@ -64,9 +67,10 @@ const Widget: React.FC<{ project: Project, behavior: WidgetBehavior & { type: "l
         const full = rawBuffer.current + decoded;
 
         const result = parseLogContent(full);
+        const logsResult = result.logs.filter((e => behavior.filter.includes(e.level.toLowerCase())))
 
-        if (result.logs.length > 0) {
-            const newLogs = [...logs.current, ...result.logs];
+        if (logsResult.length > 0) {
+            const newLogs = [...logs.current, ...logsResult];
             if (newLogs.length > MAX_LOG_LINES) {
                 logs.current = newLogs.slice(newLogs.length - MAX_LOG_LINES);
             } else {
@@ -74,7 +78,7 @@ const Widget: React.FC<{ project: Project, behavior: WidgetBehavior & { type: "l
             }
         }
         rawBuffer.current = full.substring(result.lastIndex);
-    }, []);
+    }, [behavior]);
 
     useEffect(() => {
         const raw = project.registerListener.raw((buf) => {
@@ -244,7 +248,7 @@ const DetailPanel: React.FC<{ log: LogEntry, onClose: () => void }> = ({log, onC
  * This is the header component for the tool.
  */
 const Header: React.FC<{
-    behavior: WidgetBehavior & { type: "logViewer" },
+    behavior: WidgetBehavior<"logs">,
     Container: React.FC<ToolContainerProps>
 }> = ({Container}) => {
     return <Container>
@@ -260,18 +264,139 @@ const Header: React.FC<{
 /**
  * A stub configuration component.
  */
-const LogConfiguration: React.FC<{ setBehavior: (b: WidgetBehavior) => void }> = ({setBehavior}) => {
+const LogConfiguration: React.FC<{
+    behavior: WidgetBehavior<"logs">,
+    setBehavior: SetBehavior<"logs">,
+    project: Project,
+}> = ({behavior, setBehavior, project}) => {
+    const rawBuffer = useRef<string>("")
+
+    // const _collectedLevels = useRef<Set<string>>(new Set())
+    const [collectedLevels, setCollectedLevels] = useState<string[]>([])
+
+    const [newFilter, setNewFilter] = useState<string>('');
+    const alerts = useAlerts()
+
+    // useEffect(() => {
+    //     console.log(_collectedLevels.current)
+    //     let strings = _collectedLevels.current;
+    //     console.log(strings)
+    //     setCollectedLevels(["hey"])
+    // }, [_collectedLevels])
+
+    const handleReceive = (buf: Uint8Array) => {
+        const decoded = new TextDecoder().decode(buf);
+        const full = rawBuffer.current + decoded;
+
+        const result = parseLogContent(full);
+
+        setCollectedLevels((prev) => {
+            const maybeNew = result.logs.map((it) => it.level.toLowerCase())
+
+            for (let level of maybeNew) {
+                if (!prev.includes(level)) {
+                    return [...new Set([...maybeNew, ...prev])]
+                }
+            }
+
+            return prev
+        })
+
+        rawBuffer.current = full.substring(result.lastIndex);
+    }
+
     useEffect(() => {
-        setBehavior({
-            type: "logViewer"
+        const raw = project.registerListener.raw((buf) => {
+            handleReceive(buf);
         });
-    }, [setBehavior]);
+
+        return () => {
+            project.unregisterListener.raw(raw)
+        }
+    }, [project, handleReceive]);
+
+    // Function to add a component, memoized with useCallback
+    const handleAddFilter = useCallback(() => {
+        const trimmed = newFilter.trim().toLowerCase();
+        if (trimmed) {
+            if (!behavior?.filter?.includes(trimmed)) {
+                setBehavior({
+                    filter: [...(behavior?.filter ?? []), trimmed],
+                })
+                setNewFilter('');
+            } else {
+                alerts.showAlert("warning", `The level ${trimmed} is already added`);
+            }
+        }
+    }, [behavior, newFilter]);
+
+    const handleRemoveFilter = useCallback((componentToRemove: string) => {
+        setBehavior({
+            filter: behavior?.filter?.filter(c => c !== componentToRemove) ?? [],
+        })
+    }, [behavior]);
+
+    // Handler for the 'Enter' key press on the input
+    const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+        if (e.key === 'Enter') {
+            handleAddFilter();
+        }
+    };
 
     return (
-        // Light mode config panel
-        <div className="p-4  h-full">
-            <h3 className="text-lg font-semibold ">Log Viewer Configuration</h3>
-            <p className="text-gray-600 mt-2">No configuration available for this tool.</p>
+        <div className={"w-3/4"}>
+            <h2 className="text-center my-4 text-xl font-semibold">Log Viewer Configuration</h2>
+            <h3 className="text-center m-3 text-lg font-light">Filters</h3>
+
+            <div className={"justify-center flex gap-5 ml-auto"}>
+                <Autocomplete
+                    value={newFilter}
+                    onChange={(e) => {
+                        setNewFilter(e);
+                    }}
+                    onKeyDown={handleKeyDown}
+                    placeholder="Enter Level Filter"
+                    knownValues={collectedLevels}
+                />
+                <Button
+                    onClick={handleAddFilter}
+                    disabled={!newFilter.trim()}
+                >
+                    Add filter
+                </Button>
+            </div>
+
+            <div className={"mt-5"}>
+                {behavior?.filter?.length === 0 ? (
+                    <p style={{ color: '#666' }}></p>
+                ) : (
+                    // Display list with flex or a list style for better formatting
+                    <ul style={{ listStyleType: 'none', padding: 0 }}>
+                        {(behavior?.filter ?? []).map((component) => (
+                            <li
+                                key={component}
+                                style={{
+                                    display: 'flex',
+                                    justifyContent: 'space-between',
+                                    alignItems: 'center',
+                                    padding: '8px 0',
+                                    borderBottom: '1px solid #eee'
+                                }}
+                            >
+                                <span>{component}</span>
+                                <Button
+                                    onClick={() => handleRemoveFilter(component)}
+                                    className={"p-1 border-none ml-2 rounded cursor-pointer hover:bg-red-200 transition-colors duration-200"}
+                                ><svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24"
+                                      stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                                          d="M6 18L18 6M6 6l12 12"/>
+                                </svg></Button>
+                            </li>
+                        ))}
+                    </ul>
+                )}
+            </div>
         </div>
     );
 }
@@ -279,12 +404,16 @@ const LogConfiguration: React.FC<{ setBehavior: (b: WidgetBehavior) => void }> =
 /**
  * The final exported Tool object.
  */
-export const LogViewer: Tool = {
-    header(behavior: WidgetBehavior, container: React.FC<ToolContainerProps>): React.ReactElement {
-        return <Header behavior={behavior as WidgetBehavior & { type: "logViewer" }} Container={container}/>;
+export const LogViewer: WidgetHandler<"logs"> = {
+    header(behavior, container): React.ReactElement {
+        return <Header behavior={behavior} Container={container}/>;
     },
-    type: "logViewer",
+    type: "logs",
+    behaviorType: "logs",
     displayName: "Log Viewer",
-    widget: (s, behavior) => <Widget project={s} behavior={behavior as WidgetBehavior & { type: "logViewer" }}/>,
-    configurator: (s) => <LogConfiguration setBehavior={s}/>
+    widget: (s, behavior) => <Widget project={s} behavior={behavior}/>,
+    configurator: ({behavior, setBehavior, project}) => <LogConfiguration project={project} behavior={behavior ?? {
+        filter: [],
+        type: "logs"
+    }} setBehavior={setBehavior}/>
 }

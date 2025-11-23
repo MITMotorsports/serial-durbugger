@@ -1,6 +1,5 @@
-
 // Snapping and Constraining Helpers
-import {BoundingBox, Widget} from "../../widget/tool.ts";
+import {BoundingBox, Widget} from "../../widget/widget.ts";
 import {ActiveResize, ResizeBorder, WidgetRegion} from "./types.ts";
 import {BORDER_VALUES, EPSILON, MINIMUM_LENGTH, SNAP_THRESHOLD} from "./const.tsx";
 
@@ -193,7 +192,7 @@ export const runMergePass = (regions: BoundingBox[], direction: 'horizontal' | '
  * Returns an *unmerged* list of active resize items.
  */
 export const findAffectedWidgets = (
-    triggerWidget: Widget,
+    triggerWidget: Widget<any>,
     triggerType: ResizeBorder,
     allWidgets: WidgetRegion[]
 ): ActiveResize[] => {

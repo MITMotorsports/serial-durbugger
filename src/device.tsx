@@ -96,7 +96,6 @@ export class ProjectManagerImpl implements ProjectManager {
 
         device.listeners.registerListener.close(() => {
             console.log("device listener closed ", device.name)
-
         })
 
         return device;

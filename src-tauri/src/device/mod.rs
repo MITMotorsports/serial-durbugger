@@ -325,14 +325,13 @@ impl Device {
 
         let mut vec = vec![0u8; available]; // Vec::with_capacity(self.channel.available());
 
-        self.read(&mut vec)?;
+        let len = self.read(&mut vec)?;
+
+        vec.resize(len, 0);
 
         Ok(vec)
     }
 
-    // pub fn available(&mut self) -> usize {
-    //    self.channel.available()
-    // }
 
     pub fn read(&mut self, buf: &mut [u8]) -> Result<usize, Error> {
         Ok(self.channel.read(buf)?)
