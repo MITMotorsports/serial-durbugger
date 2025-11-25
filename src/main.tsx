@@ -8,7 +8,6 @@ import {ProjectManagerImpl, Projects} from "./device.tsx";
 import {AlertProvider} from "./alert.tsx";
 import {LogViewer} from "./widget/log/log_viewer.tsx";
 import {CommandSender} from "./widget/command_panel.tsx";
-import UpdateHelper from "./update.tsx";
 import {invoke} from "@tauri-apps/api/core";
 
 export const toolRegistry: WidgetHandler<any>[] = [
@@ -23,11 +22,11 @@ ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
     // TODO decide if we want strict mode. Currently the double rendering is causing device open/close problems in useEffect.
     // <React.StrictMode>
         <AlertProvider>
-            <UpdateHelper>
+            {/*<UpdateHelper>*/}
                 <Projects.Provider value={new ProjectManagerImpl()}>
                     <SessionManager/>
                 </Projects.Provider>
-            </UpdateHelper>
+            {/*</UpdateHelper>*/}
         </AlertProvider>
     // </React.StrictMode>,
 );

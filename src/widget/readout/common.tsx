@@ -1,8 +1,9 @@
 import {SetBehavior, WidgetBehavior} from "../widget.ts";
-import Input from "../../component/input.tsx";
-import React, {useCallback, useState} from "react";
+import React, {useCallback, useEffect, useRef, useState} from "react";
 import Button from "../../component/button.tsx";
 import {useAlerts} from "../../alert.tsx";
+import {Project} from "../../device.tsx";
+import {Autocomplete} from "../../component/autocomplete.tsx";
 
 export const READOUT_REGEX = /(\S+) = (\d+\.?\d*)/g;
 
@@ -27,8 +28,7 @@ export interface ReadoutParseResult {
  * @returns A ReadoutParseResult object with the found readouts and the end index.
  */
 export function parseReadouts(
-    fullString: string,
-    validComponents: string[]
+    fullString: string
 ): ReadoutParseResult {
     const readouts: Readout[] = [];
     let lastMatchEnd = 0;
@@ -41,26 +41,71 @@ export function parseReadouts(
         const component = match[1];
         const valueStr = match[2];
 
-        if (validComponents.includes(component)) {
-            // match.index is the starting index of the full match (match[0])
-            // Since we want the end of the VALUE, we add the length of the full match.
-
-            readouts.push({
-                component: component,
-                // The regex ensures valueStr is a valid number string
-                value: Number.parseFloat(valueStr),
-            });
-        }
+        readouts.push({
+            component: component,
+            // The regex ensures valueStr is a valid number string
+            value: Number.parseFloat(valueStr),
+        });
 
         lastMatchEnd = match.index! + match[0].length;
     }
 
-    return { values: readouts, lastMatchEnd };
+    return {values: readouts, lastMatchEnd};
 }
 
-export const ReadoutConfiguration: React.FC<{ behavior: WidgetBehavior<"readout"> | null, setBehavior: SetBehavior<"readout">}> = ({behavior, setBehavior}) => {
+export function parseKnownReadouts(
+    fullString: string,
+    validComponents: string[]
+): ReadoutParseResult {
+    let result = parseReadouts(fullString);
+
+    return {
+        lastMatchEnd:result.lastMatchEnd,
+        values: result.values.filter((it) => validComponents.includes(it.component))
+    }
+}
+
+export const ReadoutConfiguration: React.FC<{
+    behavior: WidgetBehavior<"readout"> | null,
+    setBehavior: SetBehavior<"readout">,
+    project: Project
+}> = ({behavior, setBehavior, project}) => {
+    const rawBuffer = useRef<string>("")
+    const [collectedComponents, setCollectedComponents] = useState<string[]>([]);
+
     const [newComponent, setNewComponent] = useState<string>('');
     const alerts = useAlerts()
+
+    const handleReceive = (buf: Uint8Array) => {
+        const decoded = new TextDecoder().decode(buf);
+        const full = rawBuffer.current + decoded;
+
+        const result = parseReadouts(full);
+
+        setCollectedComponents((prev) => {
+            const maybeNew = result.values.map((it) => it.component)
+
+            for (let component of maybeNew) {
+                if (!prev.includes(component)) {
+                    return [...new Set([...maybeNew, ...prev])]
+                }
+            }
+
+            return prev
+        })
+
+        rawBuffer.current = full.substring(result.lastMatchEnd);
+    }
+
+    useEffect(() => {
+        const raw = project.registerListener.raw((buf) => {
+            handleReceive(buf);
+        });
+
+        return () => {
+            project.unregisterListener.raw(raw)
+        }
+    }, [project, handleReceive]);
 
     // Function to add a component, memoized with useCallback
     const handleAddComponent = useCallback(() => {
@@ -92,32 +137,32 @@ export const ReadoutConfiguration: React.FC<{ behavior: WidgetBehavior<"readout"
     };
 
     return (
-        <div>
-            <h1>Readout Components</h1>
+        <div className={"w-3/4"}>
+            <h2 className="text-center my-4 text-xl font-semibold">Readout Components</h2>
+            <h3 className="text-center m-3 text-lg font-light">Components</h3>
 
-            <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-                <Input
+            <div className={"justify-center flex gap-5 ml-auto"}>
+                <Autocomplete
                     value={newComponent}
                     onChange={(e) => {
-                        setNewComponent(e.target.value)
+                        setNewComponent(e);
                     }}
                     onKeyDown={handleKeyDown}
-                    placeholder="Enter component ID..."
+                    placeholder="Enter Component"
+                    knownValues={collectedComponents}
                 />
                 <Button
                     onClick={handleAddComponent}
                     disabled={!newComponent.trim()}
-                >
-                    Add Component
-                </Button>
+                >Add component</Button>
             </div>
 
-            <div style={{ marginTop: '20px' }}>
+            <div style={{marginTop: '20px'}}>
                 {behavior?.components?.length === 0 ? (
-                    <p style={{ color: '#666' }}></p>
+                    <p style={{color: '#666'}}></p>
                 ) : (
                     // Display list with flex or a list style for better formatting
-                    <ul style={{ listStyleType: 'none', padding: 0 }}>
+                    <ul style={{listStyleType: 'none', padding: 0}}>
                         {(behavior?.components ?? []).map((component) => (
                             <li
                                 key={component}
@@ -130,22 +175,17 @@ export const ReadoutConfiguration: React.FC<{ behavior: WidgetBehavior<"readout"
                                 }}
                             >
                                 <span>{component}</span>
+
                                 <Button
-                                    // Use a class or a separate styled component for the remove button
                                     onClick={() => handleRemoveComponent(component)}
-                                    // Assuming a clean, small remove button style
-                                    style={{
-                                        padding: '4px 8px',
-                                        marginLeft: '10px',
-                                        fontSize: '0.8em',
-                                        backgroundColor: 'transparent',
-                                        color: 'red',
-                                        border: '1px solid red',
-                                        borderRadius: '4px',
-                                        cursor: 'pointer'
-                                    }}
+                                    className={"p-1 border-none ml-2 rounded cursor-pointer hover:bg-red-200 transition-colors duration-200"}
                                 >
-                                    Remove
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none"
+                                         viewBox="0 0 24 24"
+                                         stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                                              d="M6 18L18 6M6 6l12 12"/>
+                                    </svg>
                                 </Button>
                             </li>
                         ))}

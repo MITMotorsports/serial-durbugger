@@ -276,14 +276,6 @@ const WidgetView: React.FC<{ project: Project, behavior: WidgetBehavior<"command
 
             return prev
         });
-
-        // setCommandValues((prevValues: any) => ({
-        //     ...prevValues,
-        //     [commandId]: {
-        //         ...prevValues[commandId],
-        //         [paramId]: newValue,
-        //     },
-        // }));
     }, []);
 
     const handleExecute = useCallback((commandId: number) => {
@@ -303,7 +295,7 @@ const WidgetView: React.FC<{ project: Project, behavior: WidgetBehavior<"command
         const sortedValues = def.parameters.sort((a, b) => a.index - b.index)
             .map((p) => values.get(p.index)!)
 
-        const command = `[${def.id} ${sortedValues.join(" ")}]`
+        const command = `[${def.name}${sortedValues.length > 0 ? " " + sortedValues.join(" ") : ""}]\n`
 
         project.write(command)
     }, [project, commands]);

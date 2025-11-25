@@ -1,7 +1,7 @@
 import React, {useCallback, useEffect, useRef, useState} from "react";
 import {ToolContainerProps, WidgetBehavior, WidgetHandler} from "../widget.ts";
 import {Project} from "../../device.tsx";
-import {parseReadouts, ReadoutConfiguration} from "./common.tsx";
+import {parseKnownReadouts, ReadoutConfiguration} from "./common.tsx";
 
 type ReadoutValue = {
     current: number,
@@ -23,7 +23,7 @@ const Widget: React.FC<{ project: Project, behavior: WidgetBehavior<"readout"> }
 
         const full = rawBuffer.current + decoded;
 
-        const result = parseReadouts(
+        const result = parseKnownReadouts(
             full,
             behavior.components
         );
@@ -174,5 +174,5 @@ export const Readout: WidgetHandler<"readout"> = {
     behaviorType: "readout",
     displayName: "Readout",
     widget: (s, behavior) => <Widget project={s} behavior={behavior}/>,
-    configurator: ({behavior, setBehavior}) => <ReadoutConfiguration behavior={behavior} setBehavior={setBehavior}/>
+    configurator: ({behavior, setBehavior, project}) => <ReadoutConfiguration behavior={behavior} setBehavior={setBehavior} project={project}/>
 }

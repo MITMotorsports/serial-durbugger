@@ -1,6 +1,6 @@
 import {WidgetBehavior, WidgetHandler, ToolContainerProps} from "../widget.ts";
 
-import React, {useEffect, useRef, useState} from 'react';
+import React, {useCallback, useEffect, useRef, useState} from 'react';
 import {CartesianGrid, Label, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis} from 'recharts';
 import {Project} from "../../device.tsx";
 import {READOUT_REGEX, ReadoutConfiguration} from "./common.tsx";
@@ -55,37 +55,42 @@ const Widget: React.FC<{ project: Project, behavior: WidgetBehavior<"readout"> }
         return new Date(tickItem).toLocaleTimeString();
     };
 
+    const handleReceive = useCallback((buf: Uint8Array) => {
+        const decoded = new TextDecoder().decode(buf)
+
+        setRaw((raw) => {
+            let received = []
+            const full = raw + decoded
+
+            let lastIndex = 0
+            let match;
+
+            while (match = READOUT_REGEX.exec(full)) {
+                lastIndex = match.index + match[0].length
+                const component = match[1]
+                const value = match[2]
+
+                if (behavior.components.includes(component)) {
+                    received.push({
+                        time: Date.now(),
+                        component: component,
+                        value: Number.parseFloat(value)
+                    })
+                }
+            }
+
+            setData((curr) => [
+                ...curr,
+                ...received,
+            ])
+
+            return full.substring(lastIndex, full.length)
+        })
+    }, [behavior]);
+
     useEffect(() => {
         const raw = project.registerListener.raw((buf) => {
-            const decoded = new TextDecoder().decode(buf)
-
-            setRaw((raw) => {
-                let received = []
-                const full = raw + decoded
-
-                let lastIndex = 0
-                let match;
-
-                while (match = READOUT_REGEX.exec(full)) {
-                    lastIndex = match.index + match[0].length
-                    const component = match[1]
-                    const value = match[2]
-
-                    if (behavior.components.includes(component)) {
-                        received.push({
-                            time: Date.now(),
-                            component: component,
-                            value: Number.parseFloat(value)
-                        })
-                    }
-                }
-
-                setData((curr) => [
-                    ...curr,
-                    ...received,
-                ])
-                return full.substring(lastIndex, full.length)
-            })
+            handleReceive(buf);
         })
 
         return () => project.unregisterListener.raw(raw)
@@ -255,5 +260,5 @@ export const ReadoutTimeline: WidgetHandler<"readout"> = {
     behaviorType: "readout",
     displayName: "Readout Graph",
     widget: (s, behavior) => <Widget project={s} behavior={behavior}/>,
-    configurator: ({behavior, setBehavior}) => <ReadoutConfiguration behavior={behavior} setBehavior={setBehavior}/>
+    configurator: ({behavior, setBehavior, project}) => <ReadoutConfiguration behavior={behavior} setBehavior={setBehavior} project={project}/>
 }

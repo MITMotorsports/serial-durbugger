@@ -98,8 +98,16 @@ impl Read for MockChannel {
 
             format!("[{level} Time: {timestamp} File: {file} Line: {line}] {message}\n")
         } else {
-            // 30% chance of a key-value pair log
-            let key = if rng.gen_bool(0.5) { "idk" } else { "poop" };
+            const COMPONENTS: &[&str] = &[
+                "motor_speed",
+                "fan_level",
+                "fan_speed",
+                "torque",
+                "battery_level",
+                "ground_speed"
+            ];
+
+            let key = COMPONENTS[rng.gen_range(0..COMPONENTS.len())];
             format!("{key} = {}\n", random::<f64>())
         };
 

@@ -91,6 +91,7 @@ function Widget({project}: { project: Project }) {
                     setAutoScroll(false)
                     listRef.current?.scrollToRow({
                         index: h?.line,
+                        align: "center"
                     })
                 } else {
                     setAutoScroll(true)

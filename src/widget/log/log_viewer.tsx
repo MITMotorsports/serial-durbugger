@@ -271,7 +271,6 @@ const LogConfiguration: React.FC<{
 }> = ({behavior, setBehavior, project}) => {
     const rawBuffer = useRef<string>("")
 
-    // const _collectedLevels = useRef<Set<string>>(new Set())
     const [collectedLevels, setCollectedLevels] = useState<string[]>([])
 
     const [newFilter, setNewFilter] = useState<string>('');
