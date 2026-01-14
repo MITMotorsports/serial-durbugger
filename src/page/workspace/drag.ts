@@ -1,5 +1,5 @@
-import {BoundingBox} from "../../widget/tool.ts";
 import {ActiveDrag, DragTarget, WidgetRegion} from "./types.ts";
+import {BoundingBox} from "../../widget/widget.ts";
 
 export function recalculateMovement(e: MouseEvent, currentBound: BoundingBox, dragState: ActiveDrag) {
     const mouse = {

@@ -1,7 +1,7 @@
 // All in percentages
 
 import {HTMLAttributes} from "react";
-import {BoundingBox} from "../widget/tool.ts";
+import {BoundingBox} from "../widget/widget.ts";
 
 export default function ToolRegion({
                                        panel,
