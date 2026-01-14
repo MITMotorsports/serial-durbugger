@@ -1,5 +1,4 @@
 use crate::err::ErrorKind::{SerdeError, UpdaterError};
-use crate::update;
 use serde::Serialize;
 
 #[derive(Serialize, Debug)]

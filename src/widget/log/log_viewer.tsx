@@ -221,7 +221,7 @@ const DetailPanel: React.FC<{ log: LogEntry, onClose: () => void }> = ({log, onC
             </div>
             <div>
                 <span className="font-semibold text-gray-500 w-24 inline-block">Timestamp:</span>
-                <span className="text-gray-800">{new Date(log.timestamp).toLocaleTimeString()}</span>
+                <span className="text-gray-800">Ms since start: {log.timestamp}</span>
             </div>
             <div>
                 <span className="font-semibold text-gray-500 w-24 inline-block">File:</span>
@@ -275,13 +275,6 @@ const LogConfiguration: React.FC<{
 
     const [newFilter, setNewFilter] = useState<string>('');
     const alerts = useAlerts()
-
-    // useEffect(() => {
-    //     console.log(_collectedLevels.current)
-    //     let strings = _collectedLevels.current;
-    //     console.log(strings)
-    //     setCollectedLevels(["hey"])
-    // }, [_collectedLevels])
 
     const handleReceive = (buf: Uint8Array) => {
         const decoded = new TextDecoder().decode(buf);

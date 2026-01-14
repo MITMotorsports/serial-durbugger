@@ -22,7 +22,7 @@ pub fn run() {
     }
 
     let home = homedir::my_home().unwrap_or_else(|_| None).unwrap_or_else(|| PathBuf::from("dat/"))
-        .join(".serialdebugger");
+        .join(".serialdurbugger");
 
     let workspace_path = home.join("workspace");
 
